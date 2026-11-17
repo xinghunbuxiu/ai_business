@@ -27,7 +27,9 @@ export class AssetRegistry {
     if (stored.asset.status === "published") throw new Error(`ASSET_ALREADY_PUBLISHED: ${k}`);
     const issues = validateForPublish(stored.asset);
     if (issues.length) throw new Error(`PUBLISH_BLOCKED: ${issues.map(i => i.message).join("; ")}`);
-    const publishedAsset = { ...stored.asset, status: "published" as const };\n    const publishedHash = createHash("sha256").update(JSON.stringify(publishedAsset)).digest("hex");\n    const published = { asset: publishedAsset, hash: publishedHash, publishedAt: new Date().toISOString() };
+    const publishedAsset = { ...stored.asset, status: "published" as const };
+    const publishedHash = createHash("sha256").update(JSON.stringify(publishedAsset)).digest("hex");
+    const published = { asset: publishedAsset, hash: publishedHash, publishedAt: new Date().toISOString() };
     this.assets.set(k, published);
     this.latest.set(id, version);
     return published;
