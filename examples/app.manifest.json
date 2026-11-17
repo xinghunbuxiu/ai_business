@@ -35,5 +35,6 @@
       "kind": "a2api"
     }
   ],
-  "defaultRole": "merchant_owner"
+  "defaultRole": "merchant_owner",
+  "protocolVersion": "1.0.0"
 }
