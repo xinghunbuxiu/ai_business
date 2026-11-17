@@ -65,6 +65,13 @@ export class AppBuilderPlanner {
       throw new Error("APP_BUILDER_TENANT_SCOPE_MISMATCH");
     }
 
+    for (const [index, entry] of requirement.entrypoints.entries()) {
+      if (entry.roles.some(role => !requirement.roles.includes(role))) {
+        throw new Error(`APP_REQUIREMENT_INVALID: entrypoints.${index}.roles must be a subset of app roles`);
+      }
+    }
+    const requiredComponents = [...new Set([...requirement.requiredComponents, ...requirement.entrypoints.flatMap(entry => entry.componentId ? [entry.componentId] : [])])];
+    const workflowIntents = [...new Set([...requirement.workflowIntents, ...requirement.entrypoints.flatMap(entry => entry.workflowIntent ? [entry.workflowIntent] : [])])];
     const visible = this.registry.list({ tenantId: scope.tenantId });
     const matched: BuilderPlan["matched"] = [];
     const gaps: BuilderGap[] = [];
@@ -81,12 +88,12 @@ export class AppBuilderPlanner {
       if (item) addMatch(item.asset);
       else gaps.push({ kind: "a2api", id, reason: "not_found", generationBrief: `Define A2API capability ${id}: input/output JSON Schema, roles, permissions, tenant policy, preconditions, effects, error contract, idempotency and trusted adapter mapping.` });
     }
-    for (const id of requirement.requiredComponents) {
+    for (const id of requiredComponents) {
       const item = find("a2ui", id);
       if (item) addMatch(item.asset);
       else gaps.push({ kind: "a2ui", id, reason: "not_found", generationBrief: `Define safe declarative A2UI component ${id}: allowlisted renderer type, propsSchema, layout data and typed events pinned to exact published A2API/A2WF versions.` });
     }
-    for (const intent of requirement.workflowIntents) {
+    for (const intent of workflowIntents) {
       const item = visible.find(x => x.asset.kind === "a2wf" && (x.asset as A2WFWorkflow).trigger.intents.includes(intent));
       if (item) addMatch(item.asset);
       else gaps.push({ kind: "a2wf", id: intent, reason: "not_found", generationBrief: `Define A2WF workflow for intent ${intent}: explicit trigger roles, pinned action/form dependencies, transitions, confirmation and terminal paths.` });
