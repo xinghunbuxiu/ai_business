@@ -32,7 +32,17 @@ export class ProviderControlPlane {
       if (!asset || asset.asset.kind !== "a2api" || asset.asset.status !== "published") throw new Error("PROVIDER_CAPABILITY_NOT_PUBLISHED: " + pin.capabilityId + "@" + pin.capabilityVersion);
       if (asset.hash !== pin.contractHash) throw new Error("PROVIDER_CONTRACT_HASH_MISMATCH: " + pin.capabilityId + "@" + pin.capabilityVersion);
     }
-    await this.repository.insert({ registration, state: "active" });
+    try {
+      await this.repository.insert({ registration, state: "active" });
+    } catch (error) {
+      // PostgreSQL unique violations (SQLSTATE 23505) and equivalent repository
+      // duplicate errors are normalized at the domain boundary.
+      const code = error && typeof error === "object" && "code" in error ? error.code : undefined;
+      if (code === "23505" || (error instanceof Error && /duplicate key|already exists/i.test(error.message))) {
+        throw new Error("PROVIDER_ALREADY_REGISTERED: provider instance already exists");
+      }
+      throw error;
+    }
     return { provider: registration.providerId, instance: registration.instanceId, state: "active" as const, leaseExpiresAt: registration.lease.expiresAt };
   }
 
@@ -43,6 +53,44 @@ export class ProviderControlPlane {
     if (!current || current.state !== "active") throw new Error("PROVIDER_NOT_ACTIVE: provider cannot renew its lease");
     const updated = await this.repository.renewLease(input, now, new Date(now.getTime() + this.leaseSeconds * 1000));
     return { state: updated.state, leaseExpiresAt: updated.registration.lease.expiresAt };
+  }
+
+  async status(input: ProviderRecordKey, actor: AuthenticatedProviderProject) {
+    this.assertOwner(input, actor, "provider:read");
+    const record = await this.repository.get(input);
+    if (!record) throw new Error("PROVIDER_NOT_FOUND: provider instance does not exist");
+    return {
+      projectId: record.registration.projectId,
+      serviceId: record.registration.serviceId,
+      providerId: record.registration.providerId,
+      environment: record.registration.environment,
+      instanceId: record.registration.instanceId,
+      capabilities: record.registration.capabilities,
+      transport: { type: record.registration.transport.type },
+      state: record.state,
+      leaseExpiresAt: record.registration.lease.expiresAt
+    };
+  }
+
+  async discover(input: { capabilityId: string; capabilityVersion: string; environment: ProviderRecordKey["environment"] }, actor: AuthenticatedProviderProject) {
+    if (!actor.permissions.includes("provider:discover")) throw new Error("PROVIDER_FORBIDDEN: provider:discover permission required");
+    const records = await this.repository.listActive({ ...input, now: this.clock() });
+    // This endpoint is intentionally provider-scoped. A separate application
+    // runtime identity and resolver should be used for cross-provider routing.
+    return records
+      .filter(record => record.registration.projectId === actor.projectId &&
+        record.registration.serviceId === actor.serviceId &&
+        record.registration.providerId === actor.providerId)
+      .map(record => ({
+        projectId: record.registration.projectId,
+        serviceId: record.registration.serviceId,
+        providerId: record.registration.providerId,
+        environment: record.registration.environment,
+        instanceId: record.registration.instanceId,
+        capabilities: record.registration.capabilities,
+        state: record.state,
+        leaseExpiresAt: record.registration.lease.expiresAt
+      }));
   }
 
   async drain(input: ProviderRecordKey, actor: AuthenticatedProviderProject) {
