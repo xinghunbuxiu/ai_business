@@ -3,18 +3,19 @@ import { AssetRegistry, ExecutionRuntime, IntentResolver, type A2APICapability }
 
 const capability: A2APICapability = {
   schemaVersion:"1.0", id:"employee.create", version:"1.0.0", kind:"a2api", name:"Create employee", status:"draft", visibility:"system", permissions:["employee:create"], dependencies:[],
-  inputSchema:{type:"object"}, outputSchema:{type:"object"}, errors:[], auth:{roles:["merchant_owner"],tenantRequired:true}, preconditions:[], effects:["employee.created"], mapping:{adapter:"control",operation:"employee.create",timeoutMs:1000}, idempotency:{required:true,keyFrom:"request.idempotencyKey"},
+  inputSchema:{type:"object",required:["name"],properties:{name:{type:"string"}}}, outputSchema:{type:"object",required:["employeeId","status"],properties:{employeeId:{type:"string"},status:{type:"string"}}}, errors:[], auth:{roles:["merchant_owner"],tenantRequired:true}, preconditions:[], effects:["employee.created"], mapping:{adapter:"control",operation:"employee.create",timeoutMs:1000}, idempotency:{required:true,keyFrom:"request.idempotencyKey"},
   testEvidence:{suite:"unit",passed:2,failed:0}
 };
-function publishedRegistry() { const r = new AssetRegistry(); r.register(capability); r.publish(capability.id, capability.version); return r; }
+function publishedRegistry(asset: A2APICapability = capability) { const r = new AssetRegistry(); r.register(asset); r.publish(asset.id, asset.version); return r; }
 
 describe("AssetRegistry", () => {
-  it("requires passing evidence before publish and freezes released versions", () => {
+  it("requires passing evidence before publish and rejects duplicate immutable versions", () => {
     const r = new AssetRegistry(); const draft = {...capability, testEvidence:undefined};
     r.register(draft);
     expect(() => r.publish(draft.id,draft.version)).toThrow(/PUBLISH_BLOCKED/);
-    r.register({...capability, version:"1.0.1"});
-    expect(() => r.register(capability)).toThrow(/ASSET_IMMUTABLE/);
+    const next = {...capability, version:"1.0.1"};
+    r.register(next);
+    expect(() => r.register(next)).toThrow(/ASSET_IMMUTABLE/);
   });
   it("only resolves published assets", () => {
     const r = new AssetRegistry(); r.register(capability);
@@ -40,8 +41,27 @@ describe("ExecutionRuntime", () => {
     const first = await runtime.execute("employee.create",{name:"A"},identity,{idempotencyKey:"once"});
     const second = await runtime.execute("employee.create",{name:"A"},identity,{idempotencyKey:"once"});
     expect(first.success).toBe(true); expect(second).toEqual(first); expect(calls).toBe(1);
-    const denied = await runtime.execute("employee.create",{}, {...identity,roles:["consumer"]},{idempotencyKey:"denied"});
+    const denied = await runtime.execute("employee.create",{name:"A"}, {...identity,roles:["consumer"]},{idempotencyKey:"denied"});
     expect(denied.success).toBe(false);
     if (!denied.success) expect(denied.error.code).toBe("FORBIDDEN");
+  });
+
+  it("validates request and response against the A2API contract", async () => {
+    const runtime = new ExecutionRuntime(publishedRegistry());
+    runtime.registerAdapter("control", async () => ({employeeId:"e1",status:"created"}));
+    const identity = {userId:"u1",tenantId:"tenant-a",roles:["merchant_owner"]};
+    const invalid = await runtime.execute("employee.create",{},identity,{idempotencyKey:"bad-input"});
+    expect(invalid.success).toBe(false);
+    if (!invalid.success) expect(invalid.error.code).toBe("INVALID_INPUT");
+    const valid = await runtime.execute("employee.create",{name:"A"},identity,{idempotencyKey:"good-input"});
+    expect(valid.success).toBe(true);
+  });
+
+  it("rejects adapter output that violates the declared output schema", async () => {
+    const runtime = new ExecutionRuntime(publishedRegistry());
+    runtime.registerAdapter("control", async () => ({unexpected:true}));
+    const result = await runtime.execute("employee.create",{name:"A"},{userId:"u1",tenantId:"t1",roles:["merchant_owner"]},{idempotencyKey:"output"});
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error.code).toBe("OUTPUT_CONTRACT_VIOLATION");
   });
 });
