@@ -37,13 +37,18 @@ export class WorkflowRunner {
       if (step.type === "action" && !this.registry.get(step.capability!, step.capabilityVersion)) throw new Error("WORKFLOW_DEPENDENCY_NOT_PUBLISHED: " + step.capability + "@" + step.capabilityVersion);
       if (step.type === "form" && !this.registry.get(step.component!, step.componentVersion)) throw new Error("WORKFLOW_COMPONENT_NOT_PUBLISHED: " + step.component + "@" + step.componentVersion);
     }
-    const execution: WorkflowExecution = { id: randomUUID(), protocolVersion: "1.0.0", workflowId, workflowVersion: workflow.version, appId: options.appId ?? workflowId, status: "running", currentStepId: workflow.steps[0].id, triggerInput: input, identity, outputs: {}, history: [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+    const execution: WorkflowExecution = { id: randomUUID(), protocolVersion: "1.0.0", workflowId, workflowVersion: workflow.version, appId: options.appId ?? workflowId, status: "running", currentStepId: workflow.steps[0].id, triggerInput: input, identity, outputs: {}, history: [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), revision: 1 };
+    if (this.options.repository) await this.options.repository.create(execution);
     this.executions.set(execution.id, execution); this.emit("workflow.started", execution);
     return this.advance(execution, workflow);
   }
 
   async resume(executionId: string, response: Record<string, unknown>): Promise<WorkflowResult> {
-    const execution = this.executions.get(executionId);
+    let execution = this.executions.get(executionId);
+    if (!execution && this.options.repository) {
+      execution = await this.options.repository.get(executionId);
+      if (execution) this.executions.set(executionId, execution);
+    }
     if (!execution) throw new Error("WORKFLOW_EXECUTION_NOT_FOUND");
     if (execution.status !== "awaiting_input" && execution.status !== "awaiting_confirmation") throw new Error("WORKFLOW_NOT_WAITING");
     const workflow = this.registry.get(execution.workflowId, execution.workflowVersion)?.asset as A2WFWorkflow | undefined;
@@ -62,7 +67,7 @@ export class WorkflowRunner {
       execution.outputs[step.id] = response; execution.history.push({ stepId: step.id, status: "completed", output: response });
       execution.currentStepId = step.next ?? this.nextStep(workflow, step.id);
     }
-    execution.status = "running"; execution.updatedAt = new Date().toISOString();
+    execution.status = "running"; execution.updatedAt = new Date().toISOString(); await this.persist(execution);
     return this.advance(execution, workflow);
   }
 
@@ -79,7 +84,7 @@ export class WorkflowRunner {
       this.emit("workflow.step.started", execution, step.id);
       if (step.type === "end") {
         execution.history.push({ stepId: step.id, status: "completed" }); execution.currentStepId = undefined;
-        execution.status = "completed"; execution.updatedAt = new Date().toISOString();
+        execution.status = "completed"; execution.updatedAt = new Date().toISOString(); await this.persist(execution);
         this.emit("workflow.completed", execution, step.id); return { execution: structuredClone(execution) };
       }
       if (step.type === "condition") {
@@ -96,7 +101,7 @@ export class WorkflowRunner {
       const priorOutput = execution.outputs[step.id];
       const isConfirmed = !!priorOutput && typeof priorOutput === "object" && (priorOutput as Record<string, unknown>).confirmed === true;
       if (step.requiresConfirmation && !isConfirmed) {
-        execution.status = "awaiting_confirmation"; execution.updatedAt = new Date().toISOString();
+        execution.status = "awaiting_confirmation"; execution.updatedAt = new Date().toISOString(); await this.persist(execution);
         this.emit("workflow.waiting", execution, step.id, { type: "confirmation" });
         return { execution: structuredClone(execution), waiting: { type: "confirmation", stepId: step.id, props: this.resolveBindings(step.input, execution) as Record<string, unknown> } };
       }
@@ -133,8 +138,8 @@ export class WorkflowRunner {
   private nextStep(workflow: A2WFWorkflow, id: string): string | undefined {
     const index = workflow.steps.findIndex(step => step.id === id); return workflow.steps[index + 1]?.id;
   }
-  private fail(execution: WorkflowExecution, code: string): WorkflowResult {
-    execution.status = "failed"; execution.updatedAt = new Date().toISOString();
+  private async fail(execution: WorkflowExecution, code: string): Promise<WorkflowResult> {
+    execution.status = "failed"; execution.updatedAt = new Date().toISOString(); await this.persist(execution);
     this.emit("workflow.failed", execution, execution.currentStepId, code); return { execution: structuredClone(execution) };
   }
   private async persist(execution: WorkflowExecution): Promise<void> {
