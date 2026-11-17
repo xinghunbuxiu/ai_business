@@ -1,0 +1,46 @@
+{
+  "schemaVersion": "1.0",
+  "id": "merchant.onboarding",
+  "version": "1.0.0",
+  "kind": "a2wf",
+  "name": "Merchant onboarding",
+  "status": "draft",
+  "visibility": "system",
+  "permissions": [
+    "merchant:create",
+    "payment:configure"
+  ],
+  "dependencies": [],
+  "trigger": {
+    "intents": [
+      "merchant.onboard"
+    ],
+    "roles": [
+      "platform_admin"
+    ]
+  },
+  "steps": [
+    {
+      "id": "merchant-form",
+      "component": "merchant.create.form",
+      "input": {}
+    },
+    {
+      "id": "create-merchant",
+      "capability": "merchant.create",
+      "input": {},
+      "requiresConfirmation": true
+    },
+    {
+      "id": "payment-config",
+      "component": "payment.config.form",
+      "input": {}
+    },
+    {
+      "id": "enable-payment",
+      "capability": "payment.configure",
+      "input": {},
+      "requiresConfirmation": true
+    }
+  ]
+}
