@@ -37,6 +37,10 @@ class A2ApiHandlerRegistryTest {
         var denied = assertThrows(A2ApiException.class, () -> registry.invoke(invocation, deniedContext));
         assertEquals("FORBIDDEN", denied.code());
 
+        var missingKey = new A2ApiInvocation("1.0.0", "hr.employee.create", "1.0.0", "req-3", "trace-3", "hr-app", null, new ObjectMapper().readTree("{\\"name\\":\\"Alex\\"}"));
+        var missingKeyError = assertThrows(A2ApiException.class, () -> registry.invoke(missingKey, context));
+        assertEquals("IDEMPOTENCY_KEY_REQUIRED", missingKeyError.code());
+
         var missingVersion = new A2ApiInvocation("1.0.0", "hr.employee.create", "2.0.0", "req-2", "trace-2", "hr-app", "idem-2", new ObjectMapper().readTree("{\"name\":\"Alex\"}"));
         var error = assertThrows(A2ApiException.class, () -> registry.invoke(missingVersion, context));
         assertEquals("CAPABILITY_NOT_FOUND", error.code());
