@@ -14,17 +14,27 @@ export type WorkflowExecution = {
 export type WorkflowResult = { execution: WorkflowExecution; waiting?: { type: "input" | "confirmation"; stepId: string; component?: string; props?: Record<string, unknown> } };
 export type WorkflowEvent = { type: "workflow.started" | "workflow.step.started" | "workflow.step.completed" | "workflow.waiting" | "workflow.completed" | "workflow.failed"; executionId: string; workflowId: string; stepId?: string; at: string; detail?: unknown };
 
-export type WorkflowRunnerOptions = { repository?: WorkflowExecutionRepository };
+export type WorkflowRunnerOptions = {
+  repository?: WorkflowExecutionRepository;
+  workerId?: string;
+  leaseSeconds?: number;
+};
 
 export class WorkflowRunner {
   private readonly executions = new Map<string, WorkflowExecution>();
+  private readonly workerId: string;
+  private readonly leaseSeconds: number;
   readonly events: WorkflowEvent[] = [];
   constructor(
     private readonly registry: AssetRegistry,
     private readonly runtime: ExecutionRuntime,
     private readonly onEvent?: (event: WorkflowEvent) => void,
     private readonly options: WorkflowRunnerOptions = {}
-  ) {}
+  ) {
+    this.workerId = options.workerId ?? randomUUID();
+    this.leaseSeconds = options.leaseSeconds ?? 60;
+    if (!Number.isInteger(this.leaseSeconds) || this.leaseSeconds < 5 || this.leaseSeconds > 3600) throw new Error("WORKFLOW_LEASE_DURATION_INVALID");
+  }
 
   async start(workflowId: string, input: Record<string, unknown>, identity: Identity, options: { appId?: string } = {}): Promise<WorkflowResult> {
     const stored = this.registry.get(workflowId);
@@ -38,7 +48,10 @@ export class WorkflowRunner {
       if (step.type === "form" && !this.registry.get(step.component!, step.componentVersion)) throw new Error("WORKFLOW_COMPONENT_NOT_PUBLISHED: " + step.component + "@" + step.componentVersion);
     }
     const execution: WorkflowExecution = { id: randomUUID(), protocolVersion: "1.0.0", workflowId, workflowVersion: workflow.version, appId: options.appId ?? workflowId, status: "running", currentStepId: workflow.steps[0].id, triggerInput: input, identity, outputs: {}, history: [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), revision: 1 };
-    if (this.options.repository) await this.options.repository.create(execution);
+    if (this.options.repository) {
+      await this.options.repository.create(execution);
+      await this.claim(execution.id);
+    }
     this.executions.set(execution.id, execution); this.emit("workflow.started", execution);
     return this.advance(execution, workflow);
   }
@@ -51,6 +64,7 @@ export class WorkflowRunner {
     }
     if (!execution) throw new Error("WORKFLOW_EXECUTION_NOT_FOUND");
     if (execution.status !== "awaiting_input" && execution.status !== "awaiting_confirmation") throw new Error("WORKFLOW_NOT_WAITING");
+    if (this.options.repository) await this.claim(execution.id);
     const workflow = this.registry.get(execution.workflowId, execution.workflowVersion)?.asset as A2WFWorkflow | undefined;
     if (!workflow) throw new Error("WORKFLOW_VERSION_NOT_FOUND");
     const step = workflow.steps.find(item => item.id === execution.currentStepId);
@@ -58,7 +72,7 @@ export class WorkflowRunner {
     if (execution.status === "awaiting_confirmation") {
       if (response.confirmed !== true) {
         execution.status = "failed"; execution.history.push({ stepId: step.id, status: "rejected" });
-        execution.updatedAt = new Date().toISOString(); await this.persist(execution); this.emit("workflow.failed", execution, step.id, "Confirmation rejected");
+        execution.updatedAt = new Date().toISOString(); await this.persist(execution); await this.release(execution.id); this.emit("workflow.failed", execution, step.id, "Confirmation rejected");
         return { execution: structuredClone(execution) };
       }
       execution.outputs[step.id] = { confirmed: true };
@@ -116,7 +130,7 @@ export class WorkflowRunner {
       execution.currentStepId = step.next ?? this.nextStep(workflow, step.id); execution.updatedAt = new Date().toISOString(); await this.persist(execution);
     }
     if (budget <= 0) return this.fail(execution, "WORKFLOW_STEP_BUDGET_EXCEEDED");
-    if (!execution.currentStepId) { execution.status = "completed"; execution.updatedAt = new Date().toISOString(); await this.persist(execution); this.emit("workflow.completed", execution); }
+    if (!execution.currentStepId) { execution.status = "completed"; execution.updatedAt = new Date().toISOString(); await this.persist(execution); await this.release(execution.id); this.emit("workflow.completed", execution); }
     return { execution: structuredClone(execution) };
   }
 
@@ -142,7 +156,7 @@ export class WorkflowRunner {
     execution.status = "failed"; execution.updatedAt = new Date().toISOString(); await this.persist(execution);
     this.emit("workflow.failed", execution, execution.currentStepId, code); return { execution: structuredClone(execution) };
   }
-  private async persist(execution: WorkflowExecution): Promise<void> {
+  private async claim(executionId: string): Promise<void> {\n    if (!this.options.repository) return;\n    if (!await this.options.repository.claim(executionId, this.workerId, this.leaseSeconds)) throw new Error("WORKFLOW_ALREADY_CLAIMED");\n  }\n  private async release(executionId: string): Promise<void> {\n    if (this.options.repository) await this.options.repository.release(executionId, this.workerId);\n  }\n  private async persist(execution: WorkflowExecution): Promise<void> {
     if (!this.options.repository) return;
     const revision = execution.revision ?? 1;
     execution.revision = await this.options.repository.save(execution, revision);
