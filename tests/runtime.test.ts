@@ -203,3 +203,25 @@ describe("Protocol Suite 1.0.0 contracts", () => {
     expect(validateAsset({ ...valid, entrypoints: [{ id: "home", label: "Home", roles: [] }] }).valid).toBe(false);
   });
 });
+
+
+describe("Published dependency locking", () => {
+  it("blocks publishing A2UI and App assets until exact event and app dependencies are published", () => {
+    const r = new AssetRegistry();
+    const ui = { schemaVersion: "1.0", protocolVersion: "1.0.0", id: "employee.form", version: "1.0.0", kind: "a2ui" as const, name: "Employee form", status: "draft" as const, visibility: "system" as const, permissions: [], dependencies: [], component: "EmployeeForm" as const, propsSchema: { type: "object" }, events: [{ name: "submit", target: { kind: "a2api" as const, id: "employee.create", version: "1.0.0" } }], testEvidence: { suite: "unit", passed: 1, failed: 0 } };
+    r.register(ui);
+    expect(() => r.publish(ui.id, ui.version)).toThrow(/Dependency is not published: employee.create@1.0.0/);
+    r.register(capability); r.publish(capability.id, capability.version);
+    r.publish(ui.id, ui.version);
+    const app = { schemaVersion: "1.0", protocolVersion: "1.0.0", id: "merchant.app", version: "1.0.0", kind: "app" as const, name: "Merchant", status: "draft" as const, visibility: "system" as const, permissions: [], dependencies: [], entrypoints: [{ id: "home", label: "Home", roles: ["merchant_owner"], intent: "merchant.home" }], assets: [{ id: "employee.form", version: "1.0.0", kind: "a2ui" as const }, { id: "employee.create", version: "1.0.0", kind: "a2api" as const }], testEvidence: { suite: "unit", passed: 1, failed: 0 } };
+    r.register(app);
+    expect(() => r.publish(app.id, app.version)).not.toThrow();
+  });
+
+  it("blocks App publication when a dependency version is missing or mismatched", () => {
+    const r = new AssetRegistry();
+    const app = { schemaVersion: "1.0", protocolVersion: "1.0.0", id: "broken.app", version: "1.0.0", kind: "app" as const, name: "Broken", status: "draft" as const, visibility: "system" as const, permissions: [], dependencies: [], entrypoints: [{ id: "home", label: "Home", roles: ["owner"], intent: "home" }], assets: [{ id: "employee.create", version: "9.9.9", kind: "a2api" as const }], testEvidence: { suite: "unit", passed: 1, failed: 0 } };
+    r.register(app);
+    expect(() => r.publish(app.id, app.version)).toThrow(/Dependency is not published/);
+  });
+});
