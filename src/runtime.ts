@@ -1,6 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import Ajv, { type ValidateFunction } from "ajv";
-import type { A2APICapability, ExecutionContext, RuntimeResult } from "./types.js";
+import { A2API_PROTOCOL_VERSION, type A2APIInvocation, type A2APICapability, type ExecutionContext, type RuntimeResult } from "./types.js";
 import { AssetRegistry } from "./registry.js";
 
 export type Adapter = (input: unknown, context: ExecutionContext) => Promise<unknown>;
@@ -32,7 +32,7 @@ export class ExecutionRuntime {
     if (!options.idempotencyKey) return this.executeOnce(capabilityId, input, identity, options);
     const key = `${identity.tenantId ?? "global"}:${capabilityId}@${options.capabilityVersion ?? "latest"}:${options.idempotencyKey}`;
     const fingerprint = createHash("sha256").update(stableStringify({ input, identity: { userId: identity.userId, tenantId: identity.tenantId, roles: identity.roles, permissions: identity.permissions } })).digest("hex");
-    const conflict = (): RuntimeResult => ({ success: false, requestId: options.requestId ?? randomUUID(), traceId: options.traceId ?? randomUUID(), capability: capabilityId, error: { code: "IDEMPOTENCY_CONFLICT", message: "The idempotency key was already used with a different input", retryable: false } });
+    const conflict = (): RuntimeResult => ({ protocolVersion: A2API_PROTOCOL_VERSION, success: false, requestId: options.requestId ?? randomUUID(), traceId: options.traceId ?? randomUUID(), capability: capabilityId, error: { code: "IDEMPOTENCY_CONFLICT", message: "The idempotency key was already used with a different input", retryable: false } });
     const cached = this.idempotency.get(key);
     if (cached) return cached.fingerprint === fingerprint ? cached.result : conflict();
     const pending = this.inFlight.get(key);
@@ -48,11 +48,11 @@ export class ExecutionRuntime {
     }
   }
 
-  private async executeOnce(capabilityId: string, input: unknown, identity: ExecutionContext["identity"], options: { requestId?: string; traceId?: string; idempotencyKey?: string; appId?: string; capabilityVersion?: string } = {}): Promise<RuntimeResult> {
+  async executeInvocation(invocation: A2APIInvocation, identity: ExecutionContext["identity"]): Promise<RuntimeResult> {\n    if (invocation.protocolVersion !== A2API_PROTOCOL_VERSION) {\n      return { protocolVersion: A2API_PROTOCOL_VERSION, success: false, requestId: invocation.requestId, traceId: invocation.traceId, capability: invocation.capabilityId, error: { code: "UNSUPPORTED_PROTOCOL_VERSION", message: "Unsupported A2API protocol version: " + invocation.protocolVersion, retryable: false } };\n    }\n    return this.execute(invocation.capabilityId, invocation.input, identity, { requestId: invocation.requestId, traceId: invocation.traceId, appId: invocation.appId, idempotencyKey: invocation.idempotencyKey, capabilityVersion: invocation.capabilityVersion });\n  }\n\n  private async executeOnce(capabilityId: string, input: unknown, identity: ExecutionContext["identity"], options: { requestId?: string; traceId?: string; idempotencyKey?: string; appId?: string; capabilityVersion?: string } = {}): Promise<RuntimeResult> {
     const requestId = options.requestId ?? randomUUID();
     const traceId = options.traceId ?? randomUUID();
     const fail = (code: string, message: string, retryable = false, fieldErrors?: Record<string, string[]>): RuntimeResult => ({
-      success: false, requestId, traceId, capability: capabilityId,
+      protocolVersion: A2API_PROTOCOL_VERSION, success: false, requestId, traceId, capability: capabilityId,
       error: { code, message, retryable, ...(fieldErrors ? { fieldErrors } : {}) }
     });
     const stored = this.registry.get(capabilityId, options.capabilityVersion);
@@ -93,7 +93,7 @@ export class ExecutionRuntime {
         this.emit({ type: "execution.failed", traceId, requestId, capability: capabilityId, at: new Date().toISOString(), detail: message });
         return fail("OUTPUT_CONTRACT_VIOLATION", message, false, this.formatErrors(outputValidator));
       }
-      const result: RuntimeResult = { success: true, requestId, traceId, capability: capabilityId, data, effects: capability.effects };
+      const result: RuntimeResult = { protocolVersion: A2API_PROTOCOL_VERSION, success: true, requestId, traceId, capability: capabilityId, data, effects: capability.effects };
       this.emit({ type: "execution.succeeded", traceId, requestId, capability: capabilityId, at: new Date().toISOString() });
       return result;
     } catch (error) {
