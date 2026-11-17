@@ -24,6 +24,7 @@ export class AssetRegistry {
     const k = key(id, version);
     const stored = this.assets.get(k);
     if (!stored) throw new Error(`ASSET_NOT_FOUND: ${k}`);
+    if (stored.asset.status === "published") throw new Error(`ASSET_ALREADY_PUBLISHED: ${k}`);
     const issues = validateForPublish(stored.asset);
     if (issues.length) throw new Error(`PUBLISH_BLOCKED: ${issues.map(i => i.message).join("; ")}`);
     const published = { ...stored, asset: { ...stored.asset, status: "published" as const }, publishedAt: new Date().toISOString() };
