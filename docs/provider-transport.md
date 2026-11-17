@@ -106,3 +106,12 @@ For Runtime routing, use `createRepositoryProviderAdapter` with the same durable
 Heartbeat/drain/revoke bodies contain only `environment` and `instanceId`; ownership is derived from the authenticated principal. Discovery is deliberately provider-scoped in this first control-plane API. Cross-provider application routing must use a separate runtime identity and policy rather than granting a provider principal broad visibility.
 
 The adapter enforces JSON content type, a configurable body limit (default 256 KiB), non-cacheable responses and safe error mapping. It does not terminate TLS, validate credentials, issue permissions, implement rate limits or persist audit records. Those remain mandatory host/deployment responsibilities. The default route prefix is `/providers`.
+## Durable A2API idempotency
+
+`PostgresIdempotencyStore` implements the Runtime `IdempotencyStore` contract. Pass it as the third `ExecutionRuntime` constructor argument: `new ExecutionRuntime(assetRegistry, onEvent, { idempotencyStore, idempotencyTtlSeconds: 86400 })`. Apply `IDEMPOTENCY_POSTGRES_MIGRATION` with the host migration runner before enabling it.
+
+The reservation uses a unique scope key derived by Runtime from tenant (or global scope), exact capability ID/version and caller idempotency key. The SHA-256 fingerprint binds the reservation to the input and authenticated identity. A competing Runtime instance receives `IDEMPOTENCY_IN_PROGRESS`; a changed payload receives `IDEMPOTENCY_CONFLICT`; a completed operation replays the stored result. Failed operations release their reservation so a deliberate retry can execute.
+
+Durable mode fails closed if storage cannot reserve a key. If the business operation succeeds but persisting its replay result fails, Runtime returns `IDEMPOTENCY_PERSISTENCE_FAILED` and deliberately keeps the reservation rather than permitting a duplicate write. This requires operational reconciliation. Expired records can be removed with `PostgresIdempotencyStore.deleteExpired()` from a scheduled cleanup task.
+
+The PostgreSQL store provides cross-process reservation and replay, but it cannot make an external business side effect and the idempotency row one atomic transaction. Provider implementations must still enforce the same idempotency key at their own transaction boundary for end-to-end exactly-once effects. The configured TTL defaults to 24 hours and is bounded to 60 seconds–365 days.
