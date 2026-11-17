@@ -1,49 +1,87 @@
-# A2API business capability contract
+# A2API Protocol 1.0.0 — Frozen Specification
 
-A2API is the project's versioned contract for a callable business capability. It is not merely an HTTP endpoint description: it binds the business operation to its input/output contract, authorization policy, preconditions, side effects, idempotency behavior, timeout and server-owned execution adapter.
+**Status:** v1.0.0 baseline. **Protocol identifier:** `a2api`. **Media type:** `application/vnd.ai-business.a2api+json;version=1.0.0`.
 
-## Contract shape
+This document is normative for all A2API producers, registries, runtimes, adapters and Builder tools in this repository. The protocol is a project-defined business-capability protocol; it is not represented as an external standards body's specification.
 
-A published A2API includes:
+## 1. Version layers
 
-- Identity: `id`, immutable `version`, `kind: a2api`, description and visibility.
-- Input/output: JSON Schema used by the runtime to validate both sides of the adapter boundary.
-- Authorization: allowed roles, tenant requirement and explicit permission strings.
-- Preconditions: named server-registered checks evaluated before any side effect.
-- Effects: declared business events that describe what successful execution may change.
-- Mapping: an adapter name and operation. Adapter names resolve only to functions registered by trusted server code.
-- Reliability: timeout and idempotency requirement.
+- `protocolVersion`: wire and semantic contract version. A2API v1 messages MUST use `1.0.0`.
+- `id`: stable capability identity, e.g. `employee.create`.
+- `version`: immutable capability asset SemVer, e.g. `1.4.2`.
+- `schemaVersion`: common asset-envelope serialization version. It is not the protocol version.
+- Runtime package version: implementation release, independent of the protocol.
 
-## Runtime order
+A breaking wire or semantic change increments protocol major. Backward-compatible optional additions increment minor. Compatible clarifications and implementation corrections increment patch. Published capability versions are immutable. A runtime MUST reject unsupported protocol major versions and MUST NOT silently reinterpret a different major.
 
-1. Resolve the exact published capability.
-2. Check role, required permissions, tenant identity and tenant visibility.
-3. Require an idempotency key when the contract says so.
-4. Validate input against the published JSON Schema.
-5. Evaluate each named precondition. An unknown precondition fails closed.
-6. Resolve the registered adapter and execute with a trace/request context and AbortSignal.
-7. Enforce the output JSON Schema and return the standard result envelope.
+## 2. Capability asset
 
-No model-generated code, dynamic import, arbitrary URL or client-supplied adapter is executed.
+Every A2API asset MUST include:
 
-## Example
+| Field | Requirement |
+|---|---|
+| `protocolVersion` | Required, exactly `1.0.0` for this release |
+| `id`, `version` | Required stable ID and SemVer asset version |
+| `inputSchema`, `outputSchema` | Required JSON Schema contracts |
+| `auth.roles` | At least one permitted role |
+| `auth.tenantRequired` | Whether a verified tenant context is mandatory |
+| `permissions` | Required permission strings; all must be granted |
+| `preconditions` | Named server-registered checks; missing checks fail closed |
+| `effects` | Declared business effects/events |
+| `mapping` | Server-allowlisted adapter and operation, plus timeout |
+| `idempotency` | Required flag and key source |
+
+Adapters are selected by trusted server registration. Asset data MUST NOT contain executable code, arbitrary URLs, shell commands, or client-selectable adapter implementations.
+
+## 3. Invocation message
 
 ```json
 {
-  "kind": "a2api",
-  "id": "employee.create",
-  "version": "1.0.0",
-  "permissions": ["employee:create"],
-  "auth": { "roles": ["merchant_owner"], "tenantRequired": true },
-  "preconditions": ["employee.quota.available"],
-  "effects": ["employee.created"],
-  "mapping": { "adapter": "control-bridge", "operation": "employee.create", "timeoutMs": 10000 },
-  "idempotency": { "required": true, "keyFrom": "request.idempotencyKey" }
+  "protocolVersion": "1.0.0",
+  "capabilityId": "employee.create",
+  "capabilityVersion": "1.4.2",
+  "requestId": "req_01J...",
+  "traceId": "trace_01J...",
+  "appId": "merchant-console",
+  "idempotencyKey": "merchant-42:create-employee:request-99",
+  "input": { "name": "Alex", "role": "cashier" }
 }
 ```
 
-Precondition handlers and adapters are registered by the trusted host application. The runtime deliberately fails closed when a declared precondition has no handler.
+The authenticated identity (user, tenant, roles, permissions) is supplied by the trusted server context, never trusted from the invocation JSON. The exact capability version is mandatory. A runtime MUST NOT resolve `latest` for a published workflow or a production invocation.
 
-## Production boundary
+## 4. Execution order
 
-The current runtime keeps idempotency results and adapters in process memory. Production deployment must move idempotency claims/results to a durable shared store with atomic uniqueness, add request-payload fingerprinting for key-reuse conflicts, and ensure adapters honor cancellation where possible. Business side effects must still be protected by downstream idempotency because an AbortSignal cannot undo a remote operation that already committed.
+1. Validate protocol version and invocation envelope.
+2. Resolve exact `capabilityId@capabilityVersion` in published registry.
+3. Verify user roles, permissions, tenant and asset visibility.
+4. Enforce idempotency key and reject key reuse with a different request fingerprint.
+5. Validate input JSON Schema.
+6. Evaluate all named preconditions (unknown = fail closed).
+7. Invoke the allowlisted adapter with trusted identity, app, trace, request, idempotency and cancellation context.
+8. Validate output JSON Schema.
+9. Return result envelope and emit trace/audit events.
+
+## 5. Result envelope
+
+Success:
+
+```json
+{ "protocolVersion":"1.0.0", "success":true, "requestId":"req_01J...", "traceId":"trace_01J...", "capability":"employee.create", "data":{"employeeId":"emp_42"}, "effects":["employee.created"] }
+```
+
+Failure:
+
+```json
+{ "protocolVersion":"1.0.0", "success":false, "requestId":"req_01J...", "traceId":"trace_01J...", "capability":"employee.create", "error":{"code":"FORBIDDEN","message":"Permission denied","retryable":false} }
+```
+
+Error codes are stable machine identifiers. Clients branch on `error.code`, not localized message text. Implementations may add error codes without changing the protocol; existing codes MUST NOT be repurposed.
+
+## 6. Compatibility and security
+
+- Unknown optional fields may be ignored; required fields and semantics cannot be weakened.
+- A new required input field, changed meaning, changed auth requirement, or changed side-effect behavior requires a new capability asset version and compatibility review; breaking protocol semantics require a protocol major.
+- A2API assets are immutable after publication.
+- Payment, refund, deletion and other high-impact effects MUST declare explicit confirmation requirements in the calling A2WF and be audited.
+- In-memory idempotency is development-only; production requires durable atomic claims and result storage.
