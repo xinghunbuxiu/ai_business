@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import dev.aibusiness.a2api.A2ApiException;
 import dev.aibusiness.a2api.A2ApiInvocation;
 import dev.aibusiness.a2api.A2ApiResult;
+import dev.aibusiness.a2api.A2ApiProtocol;
 import org.springframework.http.MediaType;
 import org.springframework.web.client.RestClient;
 
@@ -30,6 +31,11 @@ public final class HttpA2ApiClient {
             .retrieve()
             .body(A2ApiResult.class);
         if (result == null) throw new A2ApiException("RUNTIME_EMPTY_RESPONSE", "A2API Runtime returned an empty response", true);
+        if (!A2ApiProtocol.VERSION.equals(result.protocolVersion())
+            || !invocation.requestId().equals(result.requestId())
+            || !invocation.traceId().equals(result.traceId())) {
+            throw new A2ApiException("RUNTIME_CORRELATION_MISMATCH", "Runtime response protocol or correlation IDs do not match the invocation", false);
+        }
         if (!result.success()) {
             var error = result.error();
             throw new A2ApiException(
