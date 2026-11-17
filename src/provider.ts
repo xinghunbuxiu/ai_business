@@ -42,6 +42,11 @@ export type RegisteredProvider = {
   state: ProviderRegistrationState;
 };
 
+export type ProviderBindingAuthorizer = (
+  bindingRef: string,
+  registration: ProviderRegistration
+) => boolean;
+
 const providerKey = (r: ProviderRegistration) =>
   [r.projectId, r.serviceId, r.providerId, r.environment, r.instanceId].join("/");
 
@@ -53,7 +58,10 @@ const providerKey = (r: ProviderRegistration) =>
 export class ProviderRegistry {
   private readonly providers = new Map<string, RegisteredProvider>();
 
-  constructor(private readonly assets: AssetRegistry) {}
+  constructor(
+    private readonly assets: AssetRegistry,
+    private readonly authorizeBinding: ProviderBindingAuthorizer = () => false
+  ) {}
 
   register(input: unknown, authenticatedProjectId: string, now = new Date()): RegisteredProvider {
     const parsed = ProviderRegistrationSchema.safeParse(input);
@@ -63,6 +71,9 @@ export class ProviderRegistry {
     const registration = parsed.data;
     if (registration.projectId !== authenticatedProjectId) {
       throw new Error("PROVIDER_PROJECT_FORBIDDEN: authenticated project does not own this registration");
+    }
+    if (!this.authorizeBinding(registration.transport.bindingRef, registration)) {
+      throw new Error("PROVIDER_BINDING_FORBIDDEN: transport binding is not provisioned for this provider");
     }
     if (Date.parse(registration.lease.issuedAt) > now.getTime() || Date.parse(registration.lease.expiresAt) <= now.getTime()) {
       throw new Error("PROVIDER_LEASE_INVALID: registration lease is not currently valid");
