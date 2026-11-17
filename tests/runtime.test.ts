@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AssetRegistry, ExecutionRuntime, IntentResolver, validateAsset, type A2APICapability } from "../src/index.js";
+import { AssetRegistry, AppBuilderPlanner, ExecutionRuntime, IntentResolver, validateAsset, type A2APICapability } from "../src/index.js";
 
 const capability: A2APICapability = {
   schemaVersion:"1.0", protocolVersion:"1.0.0", id:"employee.create", version:"1.0.0", kind:"a2api", name:"Create employee", status:"draft", visibility:"system", permissions:["employee:create"], dependencies:[],
@@ -223,5 +223,50 @@ describe("Published dependency locking", () => {
     const app = { schemaVersion: "1.0", protocolVersion: "1.0.0", id: "broken.app", version: "1.0.0", kind: "app" as const, name: "Broken", status: "draft" as const, visibility: "system" as const, permissions: [], dependencies: [], entrypoints: [{ id: "home", label: "Home", roles: ["owner"], intent: "home" }], assets: [{ id: "employee.create", version: "9.9.9", kind: "a2api" as const }], testEvidence: { suite: "unit", passed: 1, failed: 0 } };
     r.register(app);
     expect(() => r.publish(app.id, app.version)).toThrow(/Dependency is not published/);
+  });
+});
+
+
+describe("AppBuilderPlanner", () => {
+  it("reports explicit asset gaps and does not fabricate a manifest", () => {
+    const planner = new AppBuilderPlanner(new AssetRegistry());
+    const plan = planner.plan({
+      appId: "food.merchant", appVersion: "1.0.0", name: "Food Merchant", visibility: "system", roles: ["merchant_owner"],
+      requiredCapabilities: ["order.create"], requiredComponents: ["order.form"], workflowIntents: ["order.place"],
+      entrypoints: [{ id: "orders", label: "Orders", roles: ["merchant_owner"], workflowIntent: "order.place" }]
+    }, {});
+    expect(plan.readyForManifest).toBe(false);
+    expect(plan.manifestDraft).toBeUndefined();
+    expect(plan.gaps.map(g => g.kind + ":" + g.id)).toEqual(["a2api:order.create", "a2ui:order.form", "a2wf:order.place"]);
+  });
+
+  it("reuses published assets and emits a manifest with exact immutable pins", () => {
+    const registry = new AssetRegistry();
+    registry.register(capability); registry.publish(capability.id, capability.version);
+    const form = { schemaVersion: "1.0", protocolVersion: "1.0.0", id: "employee.form", version: "1.2.0", kind: "a2ui" as const, name: "Employee form", status: "draft" as const, visibility: "system" as const, permissions: [], dependencies: [], component: "EmployeeForm" as const, propsSchema: { type: "object" }, events: [], testEvidence: { suite: "unit", passed: 1, failed: 0 } };
+    registry.register(form); registry.publish(form.id, form.version);
+    const workflow = { schemaVersion: "1.0", protocolVersion: "1.0.0", id: "employee.onboard", version: "2.1.0", kind: "a2wf" as const, name: "Employee onboarding", status: "draft" as const, visibility: "system" as const, permissions: [], dependencies: [], trigger: { intents: ["employee.onboard"], roles: ["merchant_owner"] }, steps: [{ id: "form", type: "form" as const, component: "employee.form", componentVersion: "1.2.0" }, { id: "create", type: "action" as const, capability: "employee.create", capabilityVersion: "1.0.0" }, { id: "end", type: "end" as const }], testEvidence: { suite: "unit", passed: 1, failed: 0 } };
+    registry.register(workflow); registry.publish(workflow.id, workflow.version);
+    const planner = new AppBuilderPlanner(registry);
+    const plan = planner.plan({
+      appId: "employee.console", appVersion: "1.0.0", name: "Employee Console", visibility: "system", roles: ["merchant_owner"],
+      requiredCapabilities: ["employee.create"], requiredComponents: ["employee.form"], workflowIntents: ["employee.onboard"],
+      entrypoints: [{ id: "onboard", label: "Onboard employee", roles: ["merchant_owner"], workflowIntent: "employee.onboard" }]
+    }, {});
+    expect(plan.readyForManifest).toBe(true);
+    expect(plan.gaps).toHaveLength(0);
+    expect(plan.manifestDraft?.assets).toEqual([
+      { kind: "a2api", id: "employee.create", version: "1.0.0" },
+      { kind: "a2ui", id: "employee.form", version: "1.2.0" },
+      { kind: "a2wf", id: "employee.onboard", version: "2.1.0" }
+    ]);
+    expect(plan.manifestDraft?.entrypoints[0].workflow).toBe("employee.onboard");
+    expect(plan.matched.every(x => /^[a-f0-9]{64}$/.test(x.hash))).toBe(true);
+  });
+
+  it("rejects tenant scope mismatches and malformed business requirements", () => {
+    const planner = new AppBuilderPlanner(new AssetRegistry());
+    expect(() => planner.plan({ appId: "x", appVersion: "latest", name: "X", roles: [], entrypoints: [] }, {})).toThrow(/APP_REQUIREMENT_INVALID/);
+    expect(() => planner.plan({ appId: "tenant.app", appVersion: "1.0.0", name: "Tenant", tenantId: "tenant-a", roles: ["owner"], entrypoints: [{ id: "home", label: "Home", roles: ["owner"], intent: "home" }] }, { tenantId: "tenant-b" })).toThrow(/TENANT_SCOPE_MISMATCH/);
   });
 });
