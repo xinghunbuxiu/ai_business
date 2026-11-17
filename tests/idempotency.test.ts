@@ -34,7 +34,7 @@ class FakePostgres implements IdempotencySqlExecutor {
     }
     if (sql.includes("DELETE FROM a2api_idempotency")) {
       const row = this.records.get(key);
-      if (!sql.includes("expires_at <= $1") && row?.fingerprint === params[1] && row.state === "in_progress") {
+      if (!sql.includes("expires_at <= $1") && row && row.fingerprint === params[1] && row.state === "in_progress") {
         this.records.delete(key);
         return { rows: [], rowCount: 1 };
       }
