@@ -72,6 +72,26 @@ describe("ExecutionRuntime", () => {
     expect(aborted).toBe(true);
   });
 
+  it("deduplicates concurrent A2API calls and rejects idempotency-key payload changes", async () => {
+    const runtime = new ExecutionRuntime(publishedRegistry());
+    let calls = 0;
+    runtime.registerAdapter("control", async () => {
+      calls += 1;
+      await new Promise(resolve => setTimeout(resolve, 15));
+      return { employeeId: "e1", status: "created" };
+    });
+    const identity = { userId: "u1", tenantId: "t1", roles: ["merchant_owner"], permissions: ["employee:create"] };
+    const [first, second] = await Promise.all([
+      runtime.execute("employee.create", { name: "Alex" }, identity, { idempotencyKey: "same" }),
+      runtime.execute("employee.create", { name: "Alex" }, identity, { idempotencyKey: "same" })
+    ]);
+    expect(first).toEqual(second);
+    expect(calls).toBe(1);
+    const conflict = await runtime.execute("employee.create", { name: "Bob" }, identity, { idempotencyKey: "same" });
+    expect(conflict.success).toBe(false);
+    if (!conflict.success) expect(conflict.error.code).toBe("IDEMPOTENCY_CONFLICT");
+  });
+
   it("rejects a caller missing the A2API permission even when its role matches", async () => {
     const runtime = new ExecutionRuntime(publishedRegistry());
     runtime.registerAdapter("control", async () => ({ employeeId: "e1", status: "created" }));
