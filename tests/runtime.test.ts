@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { AssetRegistry, ExecutionRuntime, IntentResolver, type A2APICapability } from "../src/index.js";
 
 const capability: A2APICapability = {
-  schemaVersion:"1.0", id:"employee.create", version:"1.0.0", kind:"a2api", name:"Create employee", status:"draft", visibility:"system", permissions:["employee:create"], dependencies:[],
+  schemaVersion:"1.0", protocolVersion:"1.0.0", id:"employee.create", version:"1.0.0", kind:"a2api", name:"Create employee", status:"draft", visibility:"system", permissions:["employee:create"], dependencies:[],
   inputSchema:{type:"object",required:["name"],properties:{name:{type:"string"}}}, outputSchema:{type:"object",required:["employeeId","status"],properties:{employeeId:{type:"string"},status:{type:"string"}}}, errors:[], auth:{roles:["merchant_owner"],tenantRequired:true}, preconditions:[], effects:["employee.created"], mapping:{adapter:"control",operation:"employee.create",timeoutMs:1000}, idempotency:{required:true,keyFrom:"request.idempotencyKey"},
   testEvidence:{suite:"unit",passed:2,failed:0}
 };
@@ -128,12 +128,12 @@ describe("WorkflowRunner", () => {
     const { WorkflowRunner } = await import("../src/index.js");
     const r = new AssetRegistry(); r.register(capability); r.publish(capability.id, capability.version);
     const wf = {
-      schemaVersion: "1.0", id: "merchant.onboarding.test", version: "1.0.0", kind: "a2wf" as const, name: "Onboarding",
+      schemaVersion: "1.0", protocolVersion: "1.0.0", id: "merchant.onboarding.test", version: "1.0.0", kind: "a2wf" as const, name: "Onboarding",
       status: "draft" as const, visibility: "system" as const, permissions: [], dependencies: [],
       trigger: { intents: ["merchant.onboard"], roles: ["merchant_owner"] },
       steps: [
-        { id: "details", type: "form" as const, component: "merchant.form", input: {} },
-        { id: "create", type: "action" as const, capability: "employee.create", input: { name: { $ref: "outputs.details.name" } }, requiresConfirmation: true },
+        { id: "details", type: "form" as const, component: "merchant.form", componentVersion: "1.0.0", input: {} },
+        { id: "create", type: "action" as const, capability: "employee.create", capabilityVersion: "1.0.0", input: { name: { $ref: "outputs.details.name" } }, requiresConfirmation: true },
         { id: "check", type: "condition" as const, condition: { path: "outputs.create.status", operator: "eq" as const, value: "created" }, onTrue: "done", onFalse: "failed" },
         { id: "done", type: "end" as const }, { id: "failed", type: "end" as const }
       ],
@@ -155,7 +155,7 @@ describe("WorkflowRunner", () => {
   it("enforces workflow trigger roles", async () => {
     const { WorkflowRunner } = await import("../src/index.js");
     const r = new AssetRegistry();
-    const wf = { schemaVersion:"1.0", id:"restricted.workflow", version:"1.0.0", kind:"a2wf" as const, name:"Restricted", status:"draft" as const, visibility:"system" as const, permissions:[], dependencies:[], trigger:{intents:["restricted"],roles:["platform_admin"]}, steps:[{id:"end",type:"end" as const}], testEvidence:{suite:"unit",passed:1,failed:0} };
+    const wf = { schemaVersion:"1.0", protocolVersion:"1.0.0", id:"restricted.workflow", version:"1.0.0", kind:"a2wf" as const, name:"Restricted", status:"draft" as const, visibility:"system" as const, permissions:[], dependencies:[], trigger:{intents:["restricted"],roles:["platform_admin"]}, steps:[{id:"end",type:"end" as const}], testEvidence:{suite:"unit",passed:1,failed:0} };
     r.register(wf); r.publish(wf.id,wf.version);
     const runner = new WorkflowRunner(r,new ExecutionRuntime(r));
     await expect(runner.start(wf.id,{}, {userId:"u",roles:["consumer"]})).rejects.toThrow(/WORKFLOW_FORBIDDEN/);
