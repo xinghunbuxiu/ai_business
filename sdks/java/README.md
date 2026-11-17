@@ -49,4 +49,37 @@ cd sdks/java
 mvn test
 ```
 
-This is the initial provider endpoint and typed consumer-client slice, not a complete production Java SDK: the registration/heartbeat client, local JSON Schema validator and full contract conformance suite are pending.
+## Register a Java provider instance
+
+The starter also includes `ProviderControlPlaneClient` for the shared Provider Registration 1.0.0 API. Supply a RestClient whose base URL and service authentication are configured by the host application. The control plane derives project/service/provider ownership and permissions from that verified credential; do not add identity claims to registration payloads.
+
+```java
+@Bean
+ProviderControlPlaneClient providerControlPlaneClient(RestClient.Builder builder) {
+    RestClient client = builder
+        .baseUrl("https://control.example.internal")
+        // Configure OAuth2 client credentials or your approved mTLS gateway here.
+        .build();
+    return new ProviderControlPlaneClient(client);
+}
+```
+
+Build a registration from published exact pins and a provisioned transport binding:
+
+```java
+var registration = new ProviderControlPlaneClient.Registration(
+    ProviderControlPlaneClient.REGISTRATION_PROTOCOL_VERSION,
+    "commerce", "orders", "orders-provider", "prod", instanceId,
+    List.of(new ProviderControlPlaneClient.CapabilityPin(
+        "commerce.orders.create", "1.0.0", publishedContractSha256)),
+    new ProviderControlPlaneClient.Transport("https-json", "binding://commerce/orders"),
+    new ProviderControlPlaneClient.Lease(
+        Instant.now(), Instant.now().plusSeconds(300))
+);
+providerControlPlaneClient.register(registration);
+providerControlPlaneClient.heartbeat("prod", instanceId);
+```
+
+The host should schedule heartbeats well before the configured lease expires and stop advertising an instance when renewal fails. The client also exposes explicit `drain` and `revoke` operations. It does not retry registration or business invocations automatically: retries around writes must be governed by the control-plane operation semantics and the provider's own idempotency contract.
+
+This is still an initial Java SDK slice, not a complete production SDK. Local JSON Schema validation, full protocol conformance tests, automated lease scheduling, provider lifecycle audit events and durable end-to-end PostgreSQL integration tests remain pending.
