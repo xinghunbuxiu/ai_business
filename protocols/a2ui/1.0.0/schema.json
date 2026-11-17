@@ -138,6 +138,31 @@
     },
     "layout": {
       "type": "object"
+    },
+    "testEvidence": {
+      "type": "object",
+      "required": [
+        "suite",
+        "passed",
+        "failed"
+      ],
+      "properties": {
+        "suite": {
+          "type": "string"
+        },
+        "passed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "failed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reportId": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
     }
   },
   "additionalProperties": false
