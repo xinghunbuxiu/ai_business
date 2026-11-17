@@ -23,24 +23,28 @@
     {
       "id": "merchant-form",
       "component": "merchant.create.form",
-      "input": {}
+      "input": {},
+      "type": "form"
     },
     {
       "id": "create-merchant",
       "capability": "merchant.create",
       "input": {},
-      "requiresConfirmation": true
+      "requiresConfirmation": true,
+      "type": "action"
     },
     {
       "id": "payment-config",
       "component": "payment.config.form",
-      "input": {}
+      "input": {},
+      "type": "form"
     },
     {
       "id": "enable-payment",
       "capability": "payment.configure",
       "input": {},
-      "requiresConfirmation": true
+      "requiresConfirmation": true,
+      "type": "action"
     }
   ]
 }
