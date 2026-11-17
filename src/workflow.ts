@@ -162,7 +162,9 @@ export class WorkflowRunner {
       try {
         // Ledger creation is inside the heartbeat lifetime. If it fails, no business
         // action is invoked and the lease heartbeat is still stopped.
-        const attempt = await this.options.nodeExecutionStore?.start(execution, step.id, input);
+        const leaseEpoch = this.options.repository ? this.leaseEpochs.get(execution.id) : undefined;
+        if (this.options.repository && leaseEpoch === undefined) throw new Error("WORKFLOW_LEASE_EPOCH_MISSING");
+        const attempt = await this.options.nodeExecutionStore?.start(execution, step.id, input, leaseEpoch);
         try {
           result = await this.runtime.execute(step.capability!, input, execution.identity, {
             idempotencyKey: execution.id + ":" + step.id,
