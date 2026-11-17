@@ -40,10 +40,10 @@ describe("ExecutionRuntime", () => {
     const r = publishedRegistry(); const runtime = new ExecutionRuntime(r); let calls = 0;
     runtime.registerAdapter("control", async () => ({employeeId:"e1",status:"created",call:++calls}));
     const identity = {userId:"u1",tenantId:"tenant-a",roles:["merchant_owner"],permissions:["employee:create"]};
-    const first = await runtime.execute("employee.create",{name:"A"},identity,{idempotencyKey:"once"});
-    const second = await runtime.execute("employee.create",{name:"A"},identity,{idempotencyKey:"once"});
+    const first = await runtime.execute("employee.create",{name:"A"},identity,{idempotencyKey:"once",capabilityVersion:"1.0.0"});
+    const second = await runtime.execute("employee.create",{name:"A"},identity,{idempotencyKey:"once",capabilityVersion:"1.0.0"});
     expect(first.success).toBe(true); expect(second).toEqual(first); expect(calls).toBe(1);
-    const denied = await runtime.execute("employee.create",{name:"A"}, {...identity,roles:["consumer"]},{idempotencyKey:"denied"});
+    const denied = await runtime.execute("employee.create",{name:"A"}, {...identity,roles:["consumer"]},{idempotencyKey:"denied",capabilityVersion:"1.0.0"});
     expect(denied.success).toBe(false);
     if (!denied.success) expect(denied.error.code).toBe("FORBIDDEN");
   });
@@ -52,10 +52,10 @@ describe("ExecutionRuntime", () => {
     const runtime = new ExecutionRuntime(publishedRegistry());
     runtime.registerAdapter("control", async () => ({employeeId:"e1",status:"created"}));
     const identity = {userId:"u1",tenantId:"tenant-a",roles:["merchant_owner"],permissions:["employee:create"]};
-    const invalid = await runtime.execute("employee.create",{},identity,{idempotencyKey:"bad-input"});
+    const invalid = await runtime.execute("employee.create",{},identity,{idempotencyKey:"bad-input",capabilityVersion:"1.0.0"});
     expect(invalid.success).toBe(false);
     if (!invalid.success) expect(invalid.error.code).toBe("INVALID_INPUT");
-    const valid = await runtime.execute("employee.create",{name:"A"},identity,{idempotencyKey:"good-input"});
+    const valid = await runtime.execute("employee.create",{name:"A"},identity,{idempotencyKey:"good-input",capabilityVersion:"1.0.0"});
     expect(valid.success).toBe(true);
   });
 
@@ -66,7 +66,7 @@ describe("ExecutionRuntime", () => {
     runtime.registerAdapter("control", async (_input, context) => new Promise((resolve) => {
       context.signal?.addEventListener("abort", () => { aborted = true; resolve({ employeeId: "late", status: "created" }); }, { once: true });
     }));
-    const result = await runtime.execute("employee.create", { name: "A" }, { userId: "u1", tenantId: "t1", roles: ["merchant_owner"], permissions: ["employee:create"] }, { idempotencyKey: "timeout" });
+    const result = await runtime.execute("employee.create", { name: "A" }, { userId: "u1", tenantId: "t1", roles: ["merchant_owner"], permissions: ["employee:create"] }, { idempotencyKey: "timeout", capabilityVersion: "1.0.2" });
     expect(result.success).toBe(false);
     if (!result.success) expect(result.error.code).toBe("TIMEOUT");
     expect(aborted).toBe(true);
@@ -82,12 +82,12 @@ describe("ExecutionRuntime", () => {
     });
     const identity = { userId: "u1", tenantId: "t1", roles: ["merchant_owner"], permissions: ["employee:create"] };
     const [first, second] = await Promise.all([
-      runtime.execute("employee.create", { name: "Alex" }, identity, { idempotencyKey: "same" }),
-      runtime.execute("employee.create", { name: "Alex" }, identity, { idempotencyKey: "same" })
+      runtime.execute("employee.create", { name: "Alex" }, identity, { idempotencyKey: "same", capabilityVersion: "1.0.0" }),
+      runtime.execute("employee.create", { name: "Alex" }, identity, { idempotencyKey: "same", capabilityVersion: "1.0.0" })
     ]);
     expect(first).toEqual(second);
     expect(calls).toBe(1);
-    const conflict = await runtime.execute("employee.create", { name: "Bob" }, identity, { idempotencyKey: "same" });
+    const conflict = await runtime.execute("employee.create", { name: "Bob" }, identity, { idempotencyKey: "same", capabilityVersion: "1.0.0" });
     expect(conflict.success).toBe(false);
     if (!conflict.success) expect(conflict.error.code).toBe("IDEMPOTENCY_CONFLICT");
   });
@@ -95,7 +95,7 @@ describe("ExecutionRuntime", () => {
   it("rejects a caller missing the A2API permission even when its role matches", async () => {
     const runtime = new ExecutionRuntime(publishedRegistry());
     runtime.registerAdapter("control", async () => ({ employeeId: "e1", status: "created" }));
-    const result = await runtime.execute("employee.create", { name: "A" }, { userId: "u", tenantId: "t", roles: ["merchant_owner"], permissions: [] }, { idempotencyKey: "no-permission" });
+    const result = await runtime.execute("employee.create", { name: "A" }, { userId: "u", tenantId: "t", roles: ["merchant_owner"], permissions: [] }, { idempotencyKey: "no-permission", capabilityVersion: "1.0.0" });
     expect(result.success).toBe(false);
     if (!result.success) expect(result.error.code).toBe("FORBIDDEN");
   });
@@ -122,7 +122,7 @@ describe("ExecutionRuntime", () => {
     let invoked = false;
     runtime.registerPrecondition("employee.active", async () => false);
     runtime.registerAdapter("control", async () => { invoked = true; return { employeeId: "e1", status: "created" }; });
-    const result = await runtime.execute("employee.create", { name: "A" }, { userId: "u", tenantId: "t", roles: ["merchant_owner"], permissions: ["employee:create"] }, { idempotencyKey: "precondition" });
+    const result = await runtime.execute("employee.create", { name: "A" }, { userId: "u", tenantId: "t", roles: ["merchant_owner"], permissions: ["employee:create"] }, { idempotencyKey: "precondition", capabilityVersion: "1.0.3" });
     expect(result.success).toBe(false);
     if (!result.success) expect(result.error.code).toBe("PRECONDITION_FAILED");
     expect(invoked).toBe(false);
@@ -131,7 +131,7 @@ describe("ExecutionRuntime", () => {
   it("rejects adapter output that violates the declared output schema", async () => {
     const runtime = new ExecutionRuntime(publishedRegistry());
     runtime.registerAdapter("control", async () => ({unexpected:true}));
-    const result = await runtime.execute("employee.create",{name:"A"},{userId:"u1",tenantId:"t1",roles:["merchant_owner"],permissions:["employee:create"]},{idempotencyKey:"output"});
+    const result = await runtime.execute("employee.create",{name:"A"},{userId:"u1",tenantId:"t1",roles:["merchant_owner"],permissions:["employee:create"]},{idempotencyKey:"output",capabilityVersion:"1.0.0"});
     expect(result.success).toBe(false);
     if (!result.success) expect(result.error.code).toBe("OUTPUT_CONTRACT_VIOLATION");
   });
