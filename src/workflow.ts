@@ -28,6 +28,7 @@ export class WorkflowRunner {
   private readonly executions = new Map<string, WorkflowExecution>();
   private readonly workerId: string;
   private readonly leaseSeconds: number;
+  private readonly leaseEpochs = new Map<string, number>();
   readonly events: WorkflowEvent[] = [];
   constructor(
     private readonly registry: AssetRegistry,
@@ -74,7 +75,9 @@ export class WorkflowRunner {
     if (!step) throw new Error("WORKFLOW_STEP_NOT_FOUND");
     if (this.options.repository) {
       if (!caller || !this.options.authorizeResume) throw new Error("WORKFLOW_RESUME_AUTHORIZATION_REQUIRED");
-      if (!await this.options.repository.claim(execution.id, this.workerId, this.leaseSeconds)) throw new Error("WORKFLOW_ALREADY_CLAIMED");
+      const epoch = await this.options.repository.claim(execution.id, this.workerId, this.leaseSeconds);
+      if (epoch === undefined) throw new Error("WORKFLOW_ALREADY_CLAIMED");
+      this.leaseEpochs.set(execution.id, epoch);
       // Always authorize against the latest durable snapshot, never a stale in-memory node.
       const claimed = await this.options.repository.get(execution.id);
       if (!claimed) {
@@ -155,14 +158,33 @@ export class WorkflowRunner {
       }
       const input = this.resolveBindings(step.input, execution) as Record<string, unknown>;
       const heartbeat = this.startLeaseHeartbeat(execution.id);
-      const attempt = await this.options.nodeExecutionStore?.start(execution, step.id, input);
       let result: Awaited<ReturnType<ExecutionRuntime["execute"]>>;
       try {
-        result = await this.runtime.execute(step.capability!, input, execution.identity, { idempotencyKey: execution.id + ":" + step.id, appId: execution.appId, capabilityVersion: step.capabilityVersion });
-        if (attempt) await this.options.nodeExecutionStore!.finish(attempt, result.success ? "succeeded" : "failed", result.success ? result.data : undefined, result.success ? undefined : result.error.code);
-      } catch (error) {
-        if (attempt) await this.options.nodeExecutionStore!.finish(attempt, "unknown", undefined, error instanceof Error ? error.name : "UNKNOWN_ERROR");
-        throw error;
+        // Ledger creation is inside the heartbeat lifetime. If it fails, no business
+        // action is invoked and the lease heartbeat is still stopped.
+        const attempt = await this.options.nodeExecutionStore?.start(execution, step.id, input);
+        try {
+          result = await this.runtime.execute(step.capability!, input, execution.identity, {
+            idempotencyKey: execution.id + ":" + step.id,
+            appId: execution.appId,
+            capabilityVersion: step.capabilityVersion
+          });
+        } catch (error) {
+          // A thrown runtime call is an uncertain external outcome. Never infer that
+          // the provider did not perform the side effect.
+          if (attempt) await this.options.nodeExecutionStore!.finish(
+            attempt, "unknown", undefined,
+            error instanceof Error ? error.name : "UNKNOWN_ERROR"
+          );
+          throw error;
+        }
+        // Finalization errors are ledger failures, not runtime failures. Do not try
+        // to finalize the same attempt again or invoke the action a second time.
+        if (attempt) await this.options.nodeExecutionStore!.finish(
+          attempt, result.success ? "succeeded" : "failed",
+          result.success ? result.data : undefined,
+          result.success ? undefined : result.error.code
+        );
       } finally {
         if (!await heartbeat.stop()) throw new Error("WORKFLOW_LEASE_LOST");
       }
@@ -203,12 +225,14 @@ export class WorkflowRunner {
   }
   private startLeaseHeartbeat(executionId: string): { stop: () => Promise<boolean> } {
     if (!this.options.repository) return { stop: async () => true };
+    const leaseEpoch = this.leaseEpochs.get(executionId);
+    if (leaseEpoch === undefined) throw new Error("WORKFLOW_LEASE_EPOCH_MISSING");
     let lost = false;
     let inFlight: Promise<void> | undefined;
     const interval = Math.max(1000, Math.floor(this.leaseSeconds * 1000 / 3));
     const timer = setInterval(() => {
       if (inFlight || lost) return;
-      inFlight = this.options.repository!.renew(executionId, this.workerId, this.leaseSeconds)
+      inFlight = this.options.repository!.renew(executionId, this.workerId, leaseEpoch, this.leaseSeconds)
         .then(ok => { if (!ok) lost = true; })
         .catch(() => { lost = true; })
         .finally(() => { inFlight = undefined; });
@@ -223,16 +247,24 @@ export class WorkflowRunner {
   }
   private async claim(executionId: string): Promise<void> {
     if (!this.options.repository) return;
-    if (!await this.options.repository.claim(executionId, this.workerId, this.leaseSeconds)) throw new Error("WORKFLOW_ALREADY_CLAIMED");
+    const epoch = await this.options.repository.claim(executionId, this.workerId, this.leaseSeconds);
+    if (epoch === undefined) throw new Error("WORKFLOW_ALREADY_CLAIMED");
+    this.leaseEpochs.set(executionId, epoch);
   }
   private async release(executionId: string): Promise<void> {
-    if (this.options.repository) await this.options.repository.release(executionId, this.workerId);
+    if (this.options.repository) {
+      const epoch = this.leaseEpochs.get(executionId);
+      if (epoch !== undefined) await this.options.repository.release(executionId, this.workerId, epoch);
+      this.leaseEpochs.delete(executionId);
+    }
   }
   private async persist(execution: WorkflowExecution): Promise<void> {
     if (!this.options.repository) return;
-    if (!await this.options.repository.renew(execution.id, this.workerId, this.leaseSeconds)) throw new Error("WORKFLOW_LEASE_LOST");
+    const epoch = this.leaseEpochs.get(execution.id);
+    if (epoch === undefined) throw new Error("WORKFLOW_LEASE_EPOCH_MISSING");
+    if (!await this.options.repository.renew(execution.id, this.workerId, epoch, this.leaseSeconds)) throw new Error("WORKFLOW_LEASE_LOST");
     const revision = execution.revision ?? 1;
-    execution.revision = await this.options.repository.save(execution, revision, this.workerId);
+    execution.revision = await this.options.repository.save(execution, revision, this.workerId, epoch);
   }
   private emit(type: WorkflowEvent["type"], execution: WorkflowExecution, stepId?: string, detail?: unknown): void {
     const event: WorkflowEvent = { type, executionId: execution.id, workflowId: execution.workflowId, stepId, at: new Date().toISOString(), detail };
