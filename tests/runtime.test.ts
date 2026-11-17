@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AssetRegistry, ExecutionRuntime, IntentResolver, type A2APICapability } from "../src/index.js";
+import { AssetRegistry, ExecutionRuntime, IntentResolver, validateAsset, type A2APICapability } from "../src/index.js";
 
 const capability: A2APICapability = {
   schemaVersion:"1.0", protocolVersion:"1.0.0", id:"employee.create", version:"1.0.0", kind:"a2api", name:"Create employee", status:"draft", visibility:"system", permissions:["employee:create"], dependencies:[],
@@ -183,5 +183,23 @@ describe("WorkflowRunner", () => {
     r.register(wf); r.publish(wf.id,wf.version);
     const runner = new WorkflowRunner(r,new ExecutionRuntime(r));
     await expect(runner.start(wf.id,{}, {userId:"u",roles:["consumer"]})).rejects.toThrow(/WORKFLOW_FORBIDDEN/);
+  });
+});
+
+
+describe("Protocol Suite 1.0.0 contracts", () => {
+  it("requires the A2UI protocol version and only accepts declarative safe components", () => {
+    const valid = { schemaVersion: "1.0", protocolVersion: "1.0.0", id: "employee.form", version: "1.0.0", kind: "a2ui", name: "Employee form", status: "draft", visibility: "system", permissions: [], dependencies: [], component: "EmployeeForm", propsSchema: { type: "object" }, events: [{ name: "submit", target: { kind: "a2api", id: "employee.create", version: "1.0.0" } }] };
+    expect(validateAsset(valid).valid).toBe(true);
+    expect(validateAsset({ ...valid, protocolVersion: undefined }).valid).toBe(false);
+    expect(validateAsset({ ...valid, component: "ArbitraryHtml" }).valid).toBe(false);
+  });
+
+  it("requires exact versioned app dependencies and a routable entrypoint", () => {
+    const valid = { schemaVersion: "1.0", protocolVersion: "1.0.0", id: "merchant.app", version: "1.0.0", kind: "app", name: "Merchant", status: "draft", visibility: "system", permissions: [], dependencies: [], entrypoints: [{ id: "home", label: "Home", roles: ["merchant_owner"], intent: "merchant.home" }], assets: [{ id: "employee.form", version: "1.0.0", kind: "a2ui" }] };
+    expect(validateAsset(valid).valid).toBe(true);
+    expect(validateAsset({ ...valid, protocolVersion: "2.0.0" }).valid).toBe(false);
+    expect(validateAsset({ ...valid, assets: [{ id: "employee.form", version: "latest", kind: "a2ui" }] }).valid).toBe(false);
+    expect(validateAsset({ ...valid, entrypoints: [{ id: "home", label: "Home", roles: [] }] }).valid).toBe(false);
   });
 });
