@@ -115,3 +115,10 @@ The reservation uses a unique scope key derived by Runtime from tenant (or globa
 Durable mode fails closed if storage cannot reserve a key. If the business operation succeeds but persisting its replay result fails, Runtime returns `IDEMPOTENCY_PERSISTENCE_FAILED` and deliberately keeps the reservation rather than permitting a duplicate write. This requires operational reconciliation. Expired records can be removed with `PostgresIdempotencyStore.deleteExpired()` from a scheduled cleanup task.
 
 The PostgreSQL store provides cross-process reservation and replay, but it cannot make an external business side effect and the idempotency row one atomic transaction. Provider implementations must still enforce the same idempotency key at their own transaction boundary for end-to-end exactly-once effects. The configured TTL defaults to 24 hours and is bounded to 60 seconds–365 days.
+## Runtime audit events
+
+`PostgresAuditStore` provides append-only persistence for A2API execution lifecycle events. Configure it with `new ExecutionRuntime(registry, onEvent, { auditStore })` and apply `AUDIT_POSTGRES_MIGRATION` using the host migration runner.
+
+Runtime writes the `execution.started` audit event before invoking the business adapter. If that write fails, execution fails closed and the adapter is not called. Success/failure events include request/trace/capability IDs, tenant, actor and app identifiers. Input payloads, credentials and provider secrets are intentionally excluded. If the business operation completes but its success audit cannot be stored, Runtime returns `AUDIT_PERSISTENCE_FAILED`; with durable idempotency enabled it retains the reservation to prevent an unsafe replay.
+
+This first audit integration covers Runtime execution lifecycle only. Provider registration/heartbeat/drain/revoke audit, denied authentication attempts, tamper-evident export/retention and operational alerting remain deployment follow-ups; do not treat this table alone as a complete compliance audit system.
