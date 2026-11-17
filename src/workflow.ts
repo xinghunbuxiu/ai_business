@@ -18,6 +18,8 @@ export type WorkflowRunnerOptions = {
   repository?: WorkflowExecutionRepository;
   workerId?: string;
   leaseSeconds?: number;
+  /** Host callback must compare the authenticated caller with tenant, execution and node policy. Required for durable resume. */
+  authorizeResume?: (execution: WorkflowExecution, stepId: string, caller: Identity) => Promise<boolean> | boolean;
 };
 
 export class WorkflowRunner {
@@ -56,7 +58,7 @@ export class WorkflowRunner {
     return this.advance(execution, workflow);
   }
 
-  async resume(executionId: string, response: Record<string, unknown>): Promise<WorkflowResult> {
+  async resume(executionId: string, response: Record<string, unknown>, caller?: Identity): Promise<WorkflowResult> {
     let execution = this.executions.get(executionId);
     if (!execution && this.options.repository) {
       execution = await this.options.repository.get(executionId);
@@ -64,11 +66,21 @@ export class WorkflowRunner {
     }
     if (!execution) throw new Error("WORKFLOW_EXECUTION_NOT_FOUND");
     if (execution.status !== "awaiting_input" && execution.status !== "awaiting_confirmation") throw new Error("WORKFLOW_NOT_WAITING");
-    if (this.options.repository) await this.claim(execution.id);
     const workflow = this.registry.get(execution.workflowId, execution.workflowVersion)?.asset as A2WFWorkflow | undefined;
     if (!workflow) throw new Error("WORKFLOW_VERSION_NOT_FOUND");
     const step = workflow.steps.find(item => item.id === execution.currentStepId);
     if (!step) throw new Error("WORKFLOW_STEP_NOT_FOUND");
+    if (this.options.repository) {
+      if (!caller || !this.options.authorizeResume) throw new Error("WORKFLOW_RESUME_AUTHORIZATION_REQUIRED");
+      if (caller.tenantId !== execution.identity.tenantId) throw new Error("WORKFLOW_TENANT_MISMATCH");
+      if (!await this.options.authorizeResume(structuredClone(execution), step.id, structuredClone(caller))) throw new Error("WORKFLOW_RESUME_FORBIDDEN");
+      await this.claim(execution.id);
+      // Reload after claiming so a stale in-memory snapshot cannot drive a decision.
+      const claimed = await this.options.repository.get(execution.id);
+      if (!claimed) throw new Error("WORKFLOW_EXECUTION_NOT_FOUND");
+      execution = claimed;
+      if (execution.status !== "awaiting_input" && execution.status !== "awaiting_confirmation") throw new Error("WORKFLOW_NOT_WAITING");
+    }
     if (execution.status === "awaiting_confirmation") {
       if (response.confirmed !== true) {
         execution.status = "failed"; execution.history.push({ stepId: step.id, status: "rejected" });
