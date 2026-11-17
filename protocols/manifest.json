@@ -7,14 +7,16 @@
       "version": "1.0.0",
       "status": "frozen",
       "spec": "docs/a2api.md",
-      "mediaType": "application/vnd.ai-business.a2api+json"
+      "mediaType": "application/vnd.ai-business.a2api+json",
+      "schema": "protocols/a2api/1.0.0/schema.json"
     },
     {
       "id": "a2wf",
       "version": "1.0.0",
       "status": "frozen",
       "spec": "docs/a2wf.md",
-      "mediaType": "application/vnd.ai-business.a2wf+json"
+      "mediaType": "application/vnd.ai-business.a2wf+json",
+      "schema": "protocols/a2wf/1.0.0/schema.json"
     }
   ],
   "compatibility": {
