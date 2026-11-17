@@ -16,6 +16,7 @@ class A2ApiHandlerRegistryTest {
         public java.util.Set<String> requiredRoles() { return java.util.Set.of("hr_admin"); }
         public java.util.Set<String> requiredPermissions() { return java.util.Set.of("employee:create"); }
         public boolean tenantRequired() { return true; }
+        public boolean idempotencyRequired() { return true; }
         public Output handle(Input input, A2ApiContext context) {
             assertEquals("tenant-a", context.identity().tenantId());
             return new Output("emp-1");
