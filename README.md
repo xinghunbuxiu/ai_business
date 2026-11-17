@@ -10,7 +10,8 @@ An asset-driven runtime for building and operating AI-native business applicatio
 - Publication gate requiring passing test evidence; published versions cannot be overwritten.
 - Safe A2UI component allowlist.
 - Role- and tenant-aware intent resolution.
-- Adapter-based execution with JSON Schema input/output validation (Ajv).
+- Adapter-based A2API execution with JSON Schema input/output validation (Ajv).
+- Initial A2WF runner with form pauses, human confirmation, conditional branches, output bindings, execution history and trace events.
 - Standard result/error envelope, trace events, timeout handling and idempotency-key replay protection.
 - Example employee creation capability, employee form, merchant onboarding workflow and app manifest.
 
