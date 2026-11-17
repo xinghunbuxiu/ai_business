@@ -6,3 +6,4 @@ export * from "./runtime.js";
 export * from "./repository.js";
 export * from "./workflow.js";
 export * from "./builder.js";
+export * from "./provider.js";
