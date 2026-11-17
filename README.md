@@ -14,9 +14,9 @@ An asset-driven runtime for building and operating AI-native business applicatio
 - Standard result/error envelope, trace events, timeout handling and idempotency-key replay protection.
 - Example employee creation capability, employee form, merchant onboarding workflow and app manifest.
 
-## Architecture
+## Architecture and persistence
 
-See [architecture](docs/architecture.md) and [roadmap](docs/roadmap.md).
+See [architecture](docs/architecture.md), [PostgreSQL persistence design](docs/persistence.md), and [roadmap](docs/roadmap.md). The PostgreSQL schema is provided in `migrations/0001_asset_registry.sql`; the in-memory registry remains the current runtime adapter until the production database adapter and tenant RLS are implemented.
 
 ## Quick start
 
