@@ -4,7 +4,10 @@ An asset-driven runtime for building and operating AI-native business applicatio
 
 > A2API in this repository is a project-defined business capability contract. It is not presented as an official Google protocol.
 
-## Protocol baseline\n\n- Frozen protocol baselines: [A2API 1.0.0](docs/a2api.md) and [A2WF 1.0.0](docs/a2wf.md). Protocol versions, asset versions and runtime releases are independent; workflows pin exact A2API/A2UI dependency versions.\n\n## Implemented kernel
+## Protocol baseline
+
+- Frozen suite: [A2API 1.0.0](docs/a2api.md), [A2WF 1.0.0](docs/a2wf.md), [A2UI 1.0.0](docs/a2ui.md), and [App Manifest 1.0.0](docs/app-manifest.md). See the [suite contract](docs/protocol-suite.md) and [protocol manifest](protocols/manifest.json). Protocol versions, asset versions and runtime releases are independent; every release pins exact dependency versions.
+\n## Implemented kernel
 
 - Typed contracts and Zod structural validation for A2UI, A2API, A2WF and App Manifest.
 - Publication gate requiring passing test evidence; published versions cannot be overwritten.
@@ -17,7 +20,7 @@ An asset-driven runtime for building and operating AI-native business applicatio
 
 ## Architecture and persistence
 
-See [architecture](docs/architecture.md), [A2API Protocol 1.0.0](docs/a2api.md) ([JSON Schema](protocols/a2api/1.0.0/schema.json)), [A2WF Protocol 1.0.0](docs/a2wf.md) ([JSON Schema](protocols/a2wf/1.0.0/schema.json)), [protocol manifest](protocols/manifest.json), [PostgreSQL persistence design](docs/persistence.md), and [roadmap](docs/roadmap.md). The PostgreSQL schema is provided in `migrations/0001_asset_registry.sql`; the in-memory registry remains the current runtime adapter until the production database adapter and tenant RLS are implemented.
+See [architecture](docs/architecture.md), [A2API Protocol 1.0.0](docs/a2api.md) ([JSON Schema](protocols/a2api/1.0.0/schema.json)), [A2WF Protocol 1.0.0](docs/a2wf.md) ([JSON Schema](protocols/a2wf/1.0.0/schema.json)), [A2UI Protocol 1.0.0](docs/a2ui.md) ([JSON Schema](protocols/a2ui/1.0.0/schema.json)), [App Manifest Protocol 1.0.0](docs/app-manifest.md) ([JSON Schema](protocols/app-manifest/1.0.0/schema.json)), [protocol suite](docs/protocol-suite.md), [protocol manifest](protocols/manifest.json), [PostgreSQL persistence design](docs/persistence.md), and [roadmap](docs/roadmap.md). The PostgreSQL schema is provided in `migrations/0001_asset_registry.sql`; the in-memory registry remains the current runtime adapter until the production database adapter and tenant RLS are implemented.
 
 ## Quick start
 
