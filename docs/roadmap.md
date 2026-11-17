@@ -19,8 +19,12 @@
 - [ ] Adapter packages for REST, MCP and existing Control Bridge
 
 ## Milestone 3 — Builder and visual workbench
+- [x] Structured App Requirement IR and deterministic App Builder planning
+- [x] Published asset reuse by ID/intent with exact version and SHA-256 evidence
+- [x] Missing-asset gap report and generation briefs; block manifest composition while gaps remain
+- [x] Draft App Manifest composition from exact matched dependency pins
 - [ ] Chat-driven App Builder, Component Builder and Workflow Builder
-- [ ] Asset search/reuse and gap analysis before generating new assets
+- [ ] Semantic asset search and LLM-assisted draft generation
 - [ ] Validation dashboard and test evidence viewer
 - [ ] App preview, role simulation, staged release and rollback
 - [ ] React web UI and Tauri 2 desktop shell sharing the same renderer
