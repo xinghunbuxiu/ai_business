@@ -52,7 +52,7 @@ describe("Provider control-plane HTTP server", () => {
   });
 
   it("rejects missing authenticated identity and non-JSON writes", async () => {
-    const unauthenticated = await start(undefined);
+    const unauthenticated = await start(null);
     const denied = await fetch(unauthenticated.base + "/heartbeat", {
       method: "POST", headers: { "content-type": "application/json" }, body: "{}"
     });
@@ -67,10 +67,6 @@ describe("Provider control-plane HTTP server", () => {
   });
 
   it("maps duplicate provider registration to HTTP 409", async () => {
-    const { base } = await start({
-      projectId: "commerce", serviceId: "orders", providerId: "orders-java",
-      subject: "svc-orders", permissions: ["provider:register"]
-    });
     const server = createProviderHttpServer({
       async register() { throw new Error("PROVIDER_ALREADY_REGISTERED: duplicate"); }
     } as unknown as ProviderControlPlane, () => ({
@@ -85,6 +81,5 @@ describe("Provider control-plane HTTP server", () => {
     });
     expect(response.status).toBe(409);
     await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
-    void base;
   });
 });
