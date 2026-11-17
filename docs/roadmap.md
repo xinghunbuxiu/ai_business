@@ -17,7 +17,6 @@
 ## Cross-project provider integration
 - [x] Provider Registration 1.0.0 companion contract and JSON Schema
 - [x] Provider identity, exact capability pins, contract-hash verification and lease-aware in-memory registry
-- [ ] Durable provider registry, authenticated registration/heartbeat/revocation API and lease scheduler
 - [x] HTTPS JSON provider transport, server-side binding resolution interface and exact-version Runtime adapter
 - [x] Initial Java Spring Boot provider starter and typed Runtime client
 - [ ] Durable provider registry, authenticated registration/heartbeat/revocation API and lease scheduler
