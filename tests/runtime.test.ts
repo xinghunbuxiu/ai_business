@@ -100,6 +100,13 @@ describe("ExecutionRuntime", () => {
     if (!result.success) expect(result.error.code).toBe("FORBIDDEN");
   });
 
+  it("requires an exact A2API capability version instead of resolving latest", async () => {
+    const runtime = new ExecutionRuntime(publishedRegistry());
+    const result = await runtime.execute("employee.create", { name: "A" }, { userId: "u", tenantId: "t", roles: ["merchant_owner"], permissions: ["employee:create"] }, { idempotencyKey: "no-version" });
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error.code).toBe("CAPABILITY_VERSION_REQUIRED");
+  });
+
   it("rejects unsupported A2API protocol versions and resolves an explicitly pinned capability version", async () => {
     const old = { ...capability, version: "1.0.0" };
     const next = { ...capability, version: "1.1.0", name: "Create employee v1.1" };
@@ -110,7 +117,7 @@ describe("ExecutionRuntime", () => {
     const result = await runtime.execute("employee.create", { name: "A" }, identity, { idempotencyKey: "pin", capabilityVersion: "1.0.0" });
     expect(result.success).toBe(true);
     if (result.success) expect(result.data).toMatchObject({ employeeId: "runtime" });
-    const rejected = await runtime.executeInvocation({ protocolVersion: "2.0.0" as "1.0.0", capabilityId: "employee.create", capabilityVersion: "1.0.0", requestId: "r", traceId: "t", appId: "app", idempotencyKey: "k", input: { name: "A" } }, identity);
+    const rejected = await runtime.executeInvocation({ protocolVersion: "2.0.0", capabilityId: "employee.create", capabilityVersion: "1.0.0", requestId: "r", traceId: "t", appId: "app", idempotencyKey: "k", input: { name: "A" } }, identity);
     expect(rejected.success).toBe(false);
     if (!rejected.success) expect(rejected.error.code).toBe("UNSUPPORTED_PROTOCOL_VERSION");
   });
