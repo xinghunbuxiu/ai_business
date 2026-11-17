@@ -48,7 +48,7 @@ export class ExecutionRuntime {
     }
   }
 
-  private async executeOnce(capabilityId: string, input: unknown, identity: ExecutionContext["identity"], options: { requestId?: string; traceId?: string; idempotencyKey?: string; appId?: string } = {}): Promise<RuntimeResult> {
+  private async executeOnce(capabilityId: string, input: unknown, identity: ExecutionContext["identity"], options: { requestId?: string; traceId?: string; idempotencyKey?: string; appId?: string; capabilityVersion?: string } = {}): Promise<RuntimeResult> {
     const requestId = options.requestId ?? randomUUID();
     const traceId = options.traceId ?? randomUUID();
     const fail = (code: string, message: string, retryable = false, fieldErrors?: Record<string, string[]>): RuntimeResult => ({
