@@ -51,7 +51,7 @@ describe("ExecutionRuntime", () => {
   it("validates request and response against the A2API contract", async () => {
     const runtime = new ExecutionRuntime(publishedRegistry());
     runtime.registerAdapter("control", async () => ({employeeId:"e1",status:"created"}));
-    const identity = {userId:"u1",tenantId:"tenant-a",roles:["merchant_owner"]};
+    const identity = {userId:"u1",tenantId:"tenant-a",roles:["merchant_owner"],permissions:["employee:create"]};
     const invalid = await runtime.execute("employee.create",{},identity,{idempotencyKey:"bad-input"});
     expect(invalid.success).toBe(false);
     if (!invalid.success) expect(invalid.error.code).toBe("INVALID_INPUT");
@@ -72,6 +72,14 @@ describe("ExecutionRuntime", () => {
     expect(aborted).toBe(true);
   });
 
+  it("rejects a caller missing the A2API permission even when its role matches", async () => {
+    const runtime = new ExecutionRuntime(publishedRegistry());
+    runtime.registerAdapter("control", async () => ({ employeeId: "e1", status: "created" }));
+    const result = await runtime.execute("employee.create", { name: "A" }, { userId: "u", tenantId: "t", roles: ["merchant_owner"], permissions: [] }, { idempotencyKey: "no-permission" });
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error.code).toBe("FORBIDDEN");
+  });
+
   it("enforces declared A2API preconditions before invoking the adapter", async () => {
     const guarded = { ...capability, version: "1.0.3", preconditions: ["employee.active"] };
     const registry = publishedRegistry(guarded);
@@ -88,7 +96,7 @@ describe("ExecutionRuntime", () => {
   it("rejects adapter output that violates the declared output schema", async () => {
     const runtime = new ExecutionRuntime(publishedRegistry());
     runtime.registerAdapter("control", async () => ({unexpected:true}));
-    const result = await runtime.execute("employee.create",{name:"A"},{userId:"u1",tenantId:"t1",roles:["merchant_owner"]},{idempotencyKey:"output"});
+    const result = await runtime.execute("employee.create",{name:"A"},{userId:"u1",tenantId:"t1",roles:["merchant_owner"],permissions:["employee:create"]},{idempotencyKey:"output"});
     expect(result.success).toBe(false);
     if (!result.success) expect(result.error.code).toBe("OUTPUT_CONTRACT_VIOLATION");
   });
@@ -115,7 +123,7 @@ describe("WorkflowRunner", () => {
     const runtime = new ExecutionRuntime(r);
     runtime.registerAdapter("control", async input => ({ employeeId: "e1", status: "created", name: (input as {name:string}).name }));
     const runner = new WorkflowRunner(r, runtime);
-    const identity = { userId: "u1", tenantId: "t1", roles: ["merchant_owner"] };
+    const identity = { userId: "u1", tenantId: "t1", roles: ["merchant_owner"], permissions: ["employee:create"] };
     const first = await runner.start(wf.id, {}, identity);
     expect(first.execution.status).toBe("awaiting_input");
     const second = await runner.resume(first.execution.id, { name: "Alex" });
