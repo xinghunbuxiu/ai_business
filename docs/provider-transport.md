@@ -63,3 +63,11 @@ The Runtime MUST NOT put caller identity, tenant, roles or permissions into the 
 ## Current implementation boundary
 
 The TypeScript SDK now contains a transport interface, HTTPS JSON transport, exact-version adapter factory and unit tests. This is not yet a production gateway: durable provider storage, secret-manager integration, authenticated provider registration, rate limiting, circuit breaking and Java Spring Boot starter remain separate milestones.
+
+## Runtime HTTP entrypoint
+
+The Node Runtime host exposes `POST /a2api/invoke` through `createA2ApiHttpServer(runtime, resolveIdentity, options)`. The host-provided identity resolver is the only source of caller identity; body fields such as `identity`, `tenantId` or `roles` are not used. The host must implement real authentication (for example, its existing OIDC/JWT or session middleware), authorize access to the route, and terminate TLS directly or at a trusted reverse proxy.
+
+The server enforces JSON content type, a configurable request-body limit, exact protocol version and required invocation envelope fields. Valid invocations are passed to `ExecutionRuntime.executeInvocation`; the Runtime remains responsible for exact published capability version, tenant, role, permission, schema and idempotency checks. The default route is `/a2api/invoke` and the default request limit is 1 MiB.
+
+This is a minimal Node HTTP host adapter, not a complete production API gateway. It does not provide a built-in OIDC provider, session store, rate limiter, durable idempotency store, audit database, reverse-proxy configuration or PostgreSQL persistence. Do not expose it publicly without wiring the host authentication resolver and network controls.
