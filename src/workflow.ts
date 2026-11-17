@@ -2,13 +2,14 @@ import { randomUUID } from "node:crypto";
 import type { A2WFWorkflow, Identity } from "./types.js";
 import { AssetRegistry } from "./registry.js";
 import { ExecutionRuntime } from "./runtime.js";
+import type { WorkflowExecutionRepository } from "./workflow-repository.js";
 
 export type WorkflowStatus = "running" | "awaiting_input" | "awaiting_confirmation" | "completed" | "failed";
 export type WorkflowExecution = {
   id: string; protocolVersion: "1.0.0"; workflowId: string; workflowVersion: string; appId: string; status: WorkflowStatus; currentStepId?: string;
   triggerInput: Record<string, unknown>; identity: Identity; outputs: Record<string, unknown>;
   history: Array<{ stepId: string; status: string; output?: unknown; error?: unknown }>;
-  createdAt: string; updatedAt: string;
+  createdAt: string; updatedAt: string; revision?: number;
 };
 export type WorkflowResult = { execution: WorkflowExecution; waiting?: { type: "input" | "confirmation"; stepId: string; component?: string; props?: Record<string, unknown> } };
 export type WorkflowEvent = { type: "workflow.started" | "workflow.step.started" | "workflow.step.completed" | "workflow.waiting" | "workflow.completed" | "workflow.failed"; executionId: string; workflowId: string; stepId?: string; at: string; detail?: unknown };
@@ -78,11 +79,11 @@ export class WorkflowRunner {
         const actual = this.readPath(execution, step.condition!.path);
         const passed = step.condition!.operator === "exists" ? actual !== undefined : step.condition!.operator === "truthy" ? Boolean(actual) : step.condition!.operator === "eq" ? Object.is(actual, step.condition!.value) : !Object.is(actual, step.condition!.value);
         execution.outputs[step.id] = { passed }; execution.history.push({ stepId: step.id, status: "completed", output: { passed } });
-        execution.currentStepId = passed ? step.onTrue : step.onFalse; continue;
+        execution.currentStepId = passed ? step.onTrue : step.onFalse; execution.updatedAt = new Date().toISOString(); await this.persist(execution); continue;
       }
       if (step.type === "form" || step.type === "approval") {
         execution.status = step.type === "approval" ? "awaiting_confirmation" : "awaiting_input";
-        execution.updatedAt = new Date().toISOString(); this.emit("workflow.waiting", execution, step.id, { type: step.type });
+        execution.updatedAt = new Date().toISOString(); await this.persist(execution); this.emit("workflow.waiting", execution, step.id, { type: step.type });
         return { execution: structuredClone(execution), waiting: { type: step.type === "approval" ? "confirmation" : "input", stepId: step.id, component: step.component, props: this.resolveBindings(step.input, execution) as Record<string, unknown> } };
       }
       const priorOutput = execution.outputs[step.id];
@@ -100,10 +101,10 @@ export class WorkflowRunner {
       }
       execution.outputs[step.id] = result.data; execution.history.push({ stepId: step.id, status: "completed", output: result.data });
       this.emit("workflow.step.completed", execution, step.id, result.data);
-      execution.currentStepId = step.next ?? this.nextStep(workflow, step.id); execution.updatedAt = new Date().toISOString();
+      execution.currentStepId = step.next ?? this.nextStep(workflow, step.id); execution.updatedAt = new Date().toISOString(); await this.persist(execution);
     }
     if (budget <= 0) return this.fail(execution, "WORKFLOW_STEP_BUDGET_EXCEEDED");
-    if (!execution.currentStepId) { execution.status = "completed"; execution.updatedAt = new Date().toISOString(); this.emit("workflow.completed", execution); }
+    if (!execution.currentStepId) { execution.status = "completed"; execution.updatedAt = new Date().toISOString(); await this.persist(execution); this.emit("workflow.completed", execution); }
     return { execution: structuredClone(execution) };
   }
 
@@ -128,6 +129,11 @@ export class WorkflowRunner {
   private fail(execution: WorkflowExecution, code: string): WorkflowResult {
     execution.status = "failed"; execution.updatedAt = new Date().toISOString();
     this.emit("workflow.failed", execution, execution.currentStepId, code); return { execution: structuredClone(execution) };
+  }
+  private async persist(execution: WorkflowExecution): Promise<void> {
+    if (!this.options.repository) return;
+    const revision = execution.revision ?? 1;
+    execution.revision = await this.options.repository.save(execution, revision);
   }
   private emit(type: WorkflowEvent["type"], execution: WorkflowExecution, stepId?: string, detail?: unknown): void {
     const event: WorkflowEvent = { type, executionId: execution.id, workflowId: execution.workflowId, stepId, at: new Date().toISOString(), detail };
