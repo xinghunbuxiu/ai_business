@@ -5,7 +5,7 @@ import { ExecutionRuntime } from "./runtime.js";
 
 export type WorkflowStatus = "running" | "awaiting_input" | "awaiting_confirmation" | "completed" | "failed";
 export type WorkflowExecution = {
-  id: string; workflowId: string; workflowVersion: string; status: WorkflowStatus; currentStepId?: string;
+  id: string; workflowId: string; workflowVersion: string; appId: string; status: WorkflowStatus; currentStepId?: string;
   triggerInput: Record<string, unknown>; identity: Identity; outputs: Record<string, unknown>;
   history: Array<{ stepId: string; status: string; output?: unknown; error?: unknown }>;
   createdAt: string; updatedAt: string;
@@ -18,12 +18,14 @@ export class WorkflowRunner {
   readonly events: WorkflowEvent[] = [];
   constructor(private readonly registry: AssetRegistry, private readonly runtime: ExecutionRuntime, private readonly onEvent?: (event: WorkflowEvent) => void) {}
 
-  async start(workflowId: string, input: Record<string, unknown>, identity: Identity): Promise<WorkflowResult> {
+  async start(workflowId: string, input: Record<string, unknown>, identity: Identity, options: { appId?: string } = {}): Promise<WorkflowResult> {
     const stored = this.registry.get(workflowId);
     if (!stored || stored.asset.kind !== "a2wf") throw new Error("WORKFLOW_NOT_FOUND");
     const workflow = stored.asset as A2WFWorkflow;
     if (workflow.trigger.roles.length && !workflow.trigger.roles.some(role => identity.roles.includes(role))) throw new Error("WORKFLOW_FORBIDDEN");
-    const execution: WorkflowExecution = { id: randomUUID(), workflowId, workflowVersion: workflow.version, status: "running", currentStepId: workflow.steps[0].id, triggerInput: input, identity, outputs: {}, history: [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+    if (workflow.permissions.some(permission => !identity.permissions?.includes(permission))) throw new Error("WORKFLOW_PERMISSION_DENIED");
+    if (workflow.visibility !== "system" && workflow.tenantId !== identity.tenantId) throw new Error("WORKFLOW_TENANT_MISMATCH");
+    const execution: WorkflowExecution = { id: randomUUID(), workflowId, workflowVersion: workflow.version, appId: options.appId ?? workflowId, status: "running", currentStepId: workflow.steps[0].id, triggerInput: input, identity, outputs: {}, history: [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
     this.executions.set(execution.id, execution); this.emit("workflow.started", execution);
     return this.advance(execution, workflow);
   }
@@ -87,7 +89,7 @@ export class WorkflowRunner {
         return { execution: structuredClone(execution), waiting: { type: "confirmation", stepId: step.id, props: this.resolveBindings(step.input, execution) as Record<string, unknown> } };
       }
       const input = this.resolveBindings(step.input, execution) as Record<string, unknown>;
-      const result = await this.runtime.execute(step.capability!, input, execution.identity, { idempotencyKey: execution.id + ":" + step.id });
+      const result = await this.runtime.execute(step.capability!, input, execution.identity, { idempotencyKey: execution.id + ":" + step.id, appId: execution.appId });
       if (!result.success) {
         execution.history.push({ stepId: step.id, status: "failed", error: result.error });
         return this.fail(execution, result.error.code);
