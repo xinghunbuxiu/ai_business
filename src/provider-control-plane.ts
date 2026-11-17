@@ -2,7 +2,7 @@ import type { AssetRegistry } from "./registry.js";
 import { ProviderRegistrationSchema, type ProviderBindingAuthorizer, type ProviderRegistration as Registration } from "./provider.js";
 import type { ProviderRepository, ProviderRecordKey } from "./provider-repository.js";
 
-export type AuthenticatedProviderProject = { projectId: string; subject: string; permissions: string[] };
+export type AuthenticatedProviderProject = { projectId: string; serviceId: string; providerId: string; subject: string; permissions: string[] };
 export type ProviderControlPlanePolicy = { authorizeBinding: ProviderBindingAuthorizer; leaseSeconds?: number; clock?: () => Date };
 
 export class ProviderControlPlane {
@@ -19,7 +19,7 @@ export class ProviderControlPlane {
     const parsed = ProviderRegistrationSchema.safeParse(input);
     if (!parsed.success) throw new Error("PROVIDER_REGISTRATION_INVALID: " + parsed.error.issues.map(issue => issue.message).join("; "));
     const registration = parsed.data;
-    if (registration.projectId !== actor.projectId) throw new Error("PROVIDER_PROJECT_FORBIDDEN: project identity mismatch");
+    if (registration.projectId !== actor.projectId || registration.serviceId !== actor.serviceId || registration.providerId !== actor.providerId) throw new Error("PROVIDER_PROJECT_FORBIDDEN: authenticated provider identity mismatch");
     if (!this.policy.authorizeBinding(registration.transport.bindingRef, registration)) throw new Error("PROVIDER_BINDING_FORBIDDEN: binding reference is not provisioned for this provider");
     const now = this.clock();
     const issuedAt = Date.parse(registration.lease.issuedAt);
@@ -58,6 +58,6 @@ export class ProviderControlPlane {
   }
 
   private assertOwner(input: ProviderRecordKey, actor: AuthenticatedProviderProject, permission: string) {
-    if (input.projectId !== actor.projectId || !actor.permissions.includes(permission)) throw new Error("PROVIDER_FORBIDDEN: project ownership or permission check failed");
+    if (input.projectId !== actor.projectId || input.serviceId !== actor.serviceId || input.providerId !== actor.providerId || !actor.permissions.includes(permission)) throw new Error("PROVIDER_FORBIDDEN: provider identity or permission check failed");
   }
 }
