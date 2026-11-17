@@ -7,8 +7,6 @@ export type A2ApiHttpIdentityResolver = (request: IncomingMessage) => Promise<Id
 export type A2ApiHttpServerOptions = {
   path?: string;
   maxRequestBytes?: number;
-  /** Explicitly enable only when TLS is terminated by a trusted reverse proxy. */
-  trustProxyTlsTermination?: boolean;
 };
 
 const InvocationSchema = {
