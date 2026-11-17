@@ -4,7 +4,7 @@ An asset-driven runtime for building and operating AI-native business applicatio
 
 > A2API in this repository is a project-defined business capability contract. It is not presented as an official Google protocol.
 
-## Implemented kernel
+## Protocol baseline\n\n- Frozen protocol baselines: [A2API 1.0.0](docs/a2api.md) and [A2WF 1.0.0](docs/a2wf.md). Protocol versions, asset versions and runtime releases are independent; workflows pin exact A2API/A2UI dependency versions.\n\n## Implemented kernel
 
 - Typed contracts and Zod structural validation for A2UI, A2API, A2WF and App Manifest.
 - Publication gate requiring passing test evidence; published versions cannot be overwritten.
