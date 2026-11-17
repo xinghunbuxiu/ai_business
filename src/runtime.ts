@@ -3,6 +3,9 @@ import Ajv, { type ValidateFunction } from "ajv";
 import { A2API_PROTOCOL_VERSION, type A2APIInvocation, type A2APICapability, type ExecutionContext, type RuntimeResult } from "./types.js";
 import { AssetRegistry } from "./registry.js";
 
+type AjvConstructor = new (options: { allErrors: boolean; strict: boolean }) => { compile(schema: Record<string, unknown>): ValidateFunction };
+const AjvClass = Ajv as unknown as AjvConstructor;
+
 export type Adapter = (input: unknown, context: ExecutionContext) => Promise<unknown>;
 export type PreconditionHandler = (input: unknown, context: ExecutionContext) => Promise<boolean>;
 export type RuntimeEvent = { type: "execution.started" | "execution.succeeded" | "execution.failed"; traceId: string; requestId: string; capability: string; at: string; detail?: unknown };
@@ -13,7 +16,7 @@ export class ExecutionRuntime {
   private readonly idempotency = new Map<string, { fingerprint: string; result: RuntimeResult }>();
   private readonly inFlight = new Map<string, { fingerprint: string; promise: Promise<RuntimeResult> }>();
   private readonly validators = new Map<string, ValidateFunction>();
-  private readonly ajv = new Ajv({ allErrors: true, strict: false });
+  private readonly ajv = new AjvClass({ allErrors: true, strict: false });
   readonly events: RuntimeEvent[] = [];
 
   constructor(private readonly registry: AssetRegistry, private readonly onEvent?: (event: RuntimeEvent) => void) {}
@@ -116,8 +119,9 @@ export class ExecutionRuntime {
   private validator(key: string, schema: Record<string, unknown>): ValidateFunction {
     let validate = this.validators.get(key);
     if (!validate) {
-      validate = this.ajv.compile(schema);
-      this.validators.set(key, validate);
+      const compiled = this.ajv.compile(schema);
+      this.validators.set(key, compiled);
+      validate = compiled;
     }
     return validate;
   }
