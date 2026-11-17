@@ -79,6 +79,7 @@ export class WorkflowRunner {
       const claimed = await this.options.repository.get(execution.id);
       if (!claimed) throw new Error("WORKFLOW_EXECUTION_NOT_FOUND");
       execution = claimed;
+      this.executions.set(execution.id, execution);
       if (execution.status !== "awaiting_input" && execution.status !== "awaiting_confirmation") throw new Error("WORKFLOW_NOT_WAITING");
     }
     if (execution.status === "awaiting_confirmation") {
