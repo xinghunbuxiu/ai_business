@@ -121,8 +121,13 @@ export class WorkflowRunner {
       }
       const input = this.resolveBindings(step.input, execution) as Record<string, unknown>;
       const heartbeat = this.startLeaseHeartbeat(execution.id);
-      const result = await this.runtime.execute(step.capability!, input, execution.identity, { idempotencyKey: execution.id + ":" + step.id, appId: execution.appId, capabilityVersion: step.capabilityVersion });
-      if (!await heartbeat.stop()) throw new Error("WORKFLOW_LEASE_LOST");
+      const result = await (async () => {
+        try {
+          return await this.runtime.execute(step.capability!, input, execution.identity, { idempotencyKey: execution.id + ":" + step.id, appId: execution.appId, capabilityVersion: step.capabilityVersion });
+        } finally {
+          if (!await heartbeat.stop()) throw new Error("WORKFLOW_LEASE_LOST");
+        }
+      })();
       if (!result.success) {
         execution.history.push({ stepId: step.id, status: "failed", error: result.error });
         return this.fail(execution, result.error.code);
