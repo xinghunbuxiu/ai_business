@@ -1,6 +1,6 @@
 import type { AssetRegistry } from "./registry.js";
-import { ProviderRegistrationSchema, type ProviderBindingAuthorizer, type ProviderRepository, type ProviderRecordKey } from "./provider-repository.js";
-import type { ProviderRegistration as Registration } from "./provider.js";
+import { ProviderRegistrationSchema, type ProviderBindingAuthorizer, type ProviderRegistration as Registration } from "./provider.js";
+import type { ProviderRepository, type ProviderRecordKey } from "./provider-repository.js";
 
 export type AuthenticatedProviderProject = { projectId: string; subject: string; permissions: string[] };
 export type ProviderControlPlanePolicy = { authorizeBinding: ProviderBindingAuthorizer; leaseSeconds?: number; clock?: () => Date };
