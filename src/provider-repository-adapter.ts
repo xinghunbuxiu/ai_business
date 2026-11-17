@@ -19,7 +19,11 @@ export function createRepositoryProviderAdapter(options: {
       environment: options.environment
     });
     if (providers.length === 0) throw new ProviderTransportError("PROVIDER_NOT_FOUND", "No active provider is registered for the exact capability pin");
-    const selected = providers[0];
+    const selected = [...providers].sort((a, b) => {
+      const left = [a.registration.projectId, a.registration.serviceId, a.registration.providerId, a.registration.instanceId].join("/");
+      const right = [b.registration.projectId, b.registration.serviceId, b.registration.providerId, b.registration.instanceId].join("/");
+      return left.localeCompare(right);
+    })[0];
     return options.transport.invoke(selected, {
       protocolVersion: "1.0.0",
       capabilityId: options.capabilityId,
