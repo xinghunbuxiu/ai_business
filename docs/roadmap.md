@@ -8,13 +8,22 @@
 - [x] Adapter-based A2API execution, role/permission/tenant checks, named preconditions, idempotency, trace events and error envelopes
 - [x] Employee capability example and runtime tests
 
-## Protocol baseline — A2API/A2WF 1.0.0\n- [x] Freeze A2API and A2WF protocol identifiers and compatibility policy\n- [x] Require protocolVersion on A2API/A2WF assets\n- [x] Pin A2API/A2UI dependency versions in workflow nodes and resolve exact published versions\n- [x] Define invocation/result envelope and workflow execution lifecycle\n\n## Cross-project provider integration
+## Protocol baseline — A2API/A2WF 1.0.0
+- [x] Freeze A2API and A2WF protocol identifiers and compatibility policy
+- [x] Require protocolVersion on A2API/A2WF assets
+- [x] Pin A2API/A2UI dependency versions in workflow nodes and resolve exact published versions
+- [x] Define invocation/result envelope and workflow execution lifecycle
+
+## Cross-project provider integration
 - [x] Provider Registration 1.0.0 companion contract and JSON Schema
 - [x] Provider identity, exact capability pins, contract-hash verification and lease-aware in-memory registry
 - [ ] Durable provider registry, authenticated registration/heartbeat/revocation API and lease scheduler
-- [ ] Provider transport SPI, policy router and audit trail
-- [ ] Java Spring Boot provider starter and typed client
-- [ ] TypeScript/Python SDKs and REST/MCP/Control Bridge adapters
+- [x] HTTPS JSON provider transport, server-side binding resolution interface and exact-version Runtime adapter
+- [x] Initial Java Spring Boot provider starter and typed Runtime client
+- [ ] Durable provider registry, authenticated registration/heartbeat/revocation API and lease scheduler
+- [ ] Production provider policy router, health checks, circuit breaker and audit persistence
+- [ ] Java local JSON Schema validation and contract-hash self-verification
+- [ ] TypeScript/Python SDK packaging and REST/MCP/Control Bridge adapters
 
 ## Milestone 2 — Production hardening
 - [x] PostgreSQL asset-registry schema and persistence port (adapter implementation/RLS still pending)
