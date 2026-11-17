@@ -89,3 +89,20 @@ The repository persists the immutable registration envelope, provider state and 
 The HTTP framework adapter and concrete authentication mechanism remain host responsibilities. Do not expose repository methods directly to providers. Use a transaction-capable database executor and run schema migrations before enabling the control plane. Production deployments should add rate limits, audit events, secret-manager rotation, database-backed revocation propagation and operational lease-expiry monitoring.
 
 For Runtime routing, use `createRepositoryProviderAdapter` with the same durable repository. It performs asynchronous active-instance discovery by exact capability pin and environment, then invokes the selected provider through the HTTPS transport. The earlier `createProviderAdapter` remains available for the in-memory registry and local tests.
+
+## Provider control-plane HTTP API
+
+`createProviderHttpServer(controlPlane, resolveIdentity, options)` exposes a minimal Node HTTP adapter. The host's `resolveIdentity` callback must validate the service credential (for example mTLS or a signed workload token) and return the authenticated `projectId`, `serviceId`, `providerId`, `subject` and permission set. The adapter never trusts ownership values in request JSON.
+
+| Method | Route | Required permission | Purpose |
+|---|---|---|---|
+| POST | `/providers/register` | `provider:register` | Register an instance using a provisioned `bindingRef` |
+| POST | `/providers/heartbeat` | `provider:heartbeat` | Renew the caller's instance lease |
+| POST | `/providers/drain` | `provider:manage` | Stop selecting the caller's instance |
+| POST | `/providers/revoke` | `provider:manage` | Revoke the caller's instance |
+| GET | `/providers/:environment/:instanceId/status` | `provider:read` | Read the caller's instance status |
+| GET | `/providers/discover?capabilityId=...&capabilityVersion=...&environment=...` | `provider:discover` | Discover active instances scoped to the caller's project/service/provider |
+
+Heartbeat/drain/revoke bodies contain only `environment` and `instanceId`; ownership is derived from the authenticated principal. Discovery is deliberately provider-scoped in this first control-plane API. Cross-provider application routing must use a separate runtime identity and policy rather than granting a provider principal broad visibility.
+
+The adapter enforces JSON content type, a configurable body limit (default 256 KiB), non-cacheable responses and safe error mapping. It does not terminate TLS, validate credentials, issue permissions, implement rate limits or persist audit records. Those remain mandatory host/deployment responsibilities. The default route prefix is `/providers`.
