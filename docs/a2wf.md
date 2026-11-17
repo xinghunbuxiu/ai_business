@@ -53,13 +53,15 @@ Conditions are deterministic and side-effect free. More expressive boolean group
 
 The v1 lifecycle states are `running`, `awaiting_input`, `awaiting_confirmation`, `completed`, `failed`. An execution pins `workflowId@workflowVersion`, records `protocolVersion`, app ID, trusted identity, trigger input, current node, outputs and history.
 
-The runner emits lifecycle and node events with execution ID, workflow ID, node ID, timestamp and trace detail. Resuming an execution MUST authenticate the actor and enforce node-specific authorization. A browser-supplied `confirmed: true` is not proof of approval.
+The runner emits lifecycle and node events with execution ID, workflow ID, node ID, timestamp and trace detail. Resuming an execution MUST authenticate the actor and enforce node-specific authorization. A browser-supplied `confirmed: true` is not proof of approval. When a PostgreSQL repository is configured, `WorkflowRunnerOptions.authorizeResume` is mandatory and `resume(executionId, response, caller)` requires a caller identity supplied by the trusted host. The runner checks tenant equality, invokes the host authorization callback for the exact execution/node, claims the execution, reloads its latest snapshot, and only then applies the response. The callback MUST validate the caller's current permissions and role policy; never build `caller` from browser-submitted identity fields.
 
 ## 6. Execution guarantees and v1 limitations
 
 - A2API action idempotency key is derived from execution ID + node ID; the A2API capability version is passed explicitly.
 - Published dependencies are resolved by exact ID/version; missing dependencies fail before execution.
 - The default runner remains in-memory. An optional PostgreSQL execution repository now persists execution snapshots and uses optimistic revisions to reject stale snapshot updates. Configure `WorkflowRunnerOptions.repository` with `PostgresWorkflowExecutionRepository` to enable snapshot persistence; apply `WORKFLOW_POSTGRES_MIGRATION` first. The runner saves state at start, wait points, node transitions and terminal outcomes, and can reload a waiting execution for resume.
+
+Approval decisions are appended to execution history with `approved` or `rejected`, authenticated `actorId`, and `occurredAt`. This is execution-snapshot provenance, not a separately tamper-evident approval ledger; high-assurance deployments should additionally write approval events to the host's append-only audit store.
 
 The PostgreSQL repository now supports atomic worker claims using `UPDATE ... WHERE lease_expires_at IS NULL OR lease_expires_at <= NOW()`, owner-checked lease renewal, release, and owner-checked snapshot writes. Configure a stable unique `workerId` per runner process and a `leaseSeconds` value (5–3600; default 60). A runner claims before start/resume, renews while an A2API action is running, renews before each snapshot write, and releases on wait/terminal states. Expired leases can be claimed by another worker after a crash. The migration adds lease columns to existing installations with `ADD COLUMN IF NOT EXISTS`.
 
