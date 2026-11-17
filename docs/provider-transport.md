@@ -71,3 +71,19 @@ The Node Runtime host exposes `POST /a2api/invoke` through `createA2ApiHttpServe
 The server enforces JSON content type, a configurable request-body limit, exact protocol version and required invocation envelope fields. Valid invocations are passed to `ExecutionRuntime.executeInvocation`; the Runtime remains responsible for exact published capability version, tenant, role, permission, schema and idempotency checks. The default route is `/a2api/invoke` and the default request limit is 1 MiB.
 
 This is a minimal Node HTTP host adapter, not a complete production API gateway. It does not provide a built-in OIDC provider, session store, rate limiter, durable idempotency store, audit database, reverse-proxy configuration or PostgreSQL persistence. Do not expose it publicly without wiring the host authentication resolver and network controls.
+
+## Durable Provider control plane
+
+The SDK now defines a driver-neutral `ProviderRepository` and a PostgreSQL implementation, `PostgresProviderRepository`. Apply `PROVIDER_POSTGRES_MIGRATION` through the host application's migration runner; this package intentionally does not open database connections or embed database credentials.
+
+The repository persists the immutable registration envelope, provider state and lease expiry. Its primary key is the project/service/provider/environment/instance tuple. Active discovery filters by environment, exact capability ID/version, state and unexpired lease. Lease renewal is conditional on the instance still being active and unexpired.
+
+`ProviderControlPlane` adds the policy boundary around the repository:
+- Registration requires an authenticated project principal with `provider:register`.
+- The project in the registration must equal the authenticated project.
+- The server must provision and authorize the `bindingRef`; clients cannot supply an endpoint URL or credentials.
+- Every capability must be a published A2API asset with a matching contract hash.
+- Registration leases are bounded by server policy (30–3600 seconds; default 300 seconds).
+- Heartbeat requires `provider:heartbeat`; drain/revoke require `provider:manage`.
+
+The HTTP framework adapter and concrete authentication mechanism remain host responsibilities. Do not expose repository methods directly to providers. Use a transaction-capable database executor and run schema migrations before enabling the control plane. Production deployments should add rate limits, audit events, secret-manager rotation, database-backed revocation propagation and operational lease-expiry monitoring.
