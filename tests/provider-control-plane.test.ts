@@ -38,6 +38,7 @@ describe("ProviderControlPlane",()=>{
   it("registers a project-owned provider only with provisioned binding and published contract hash",async()=>{
     const {service,input}=setup();
     await expect(service.register(input,{...actor,projectId:"other"})).rejects.toThrow(/PROJECT_FORBIDDEN/);
+    await expect(service.register(input,{...actor,providerId:"other-provider"})).rejects.toThrow(/PROJECT_FORBIDDEN/);
     expect(await service.register(input,actor)).toMatchObject({state:"active",provider:"orders-java"});
   });
   it("requires explicit permissions for registration and management",async()=>{
@@ -47,6 +48,7 @@ describe("ProviderControlPlane",()=>{
   it("renews leases and supports drain/revoke state transitions",async()=>{
     const {service,input}=setup(); await service.register(input,actor);
     const key={projectId:"commerce",serviceId:"orders",providerId:"orders-java",environment:"prod" as const,instanceId:"pod-1"};
+    await expect(service.heartbeat(key,{...actor,providerId:"other-provider"})).rejects.toThrow(/PROVIDER_FORBIDDEN/);
     expect(await service.heartbeat(key,actor)).toMatchObject({state:"active"});
     expect(await service.drain(key,actor)).toEqual({state:"draining"});
     await expect(service.heartbeat(key,actor)).rejects.toThrow(/NOT_ACTIVE/);
