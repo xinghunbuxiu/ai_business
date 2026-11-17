@@ -1,7 +1,9 @@
 package dev.aibusiness.a2api;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.annotation.JsonInclude;
 
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public record A2ApiResult(
     String protocolVersion,
     String requestId,
