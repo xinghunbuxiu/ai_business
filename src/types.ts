@@ -8,7 +8,7 @@ export type AssetKind = z.infer<typeof AssetKind>;
 export const BaseAssetSchema = z.object({
   schemaVersion: z.string().min(1),
   id: z.string().regex(/^[a-z][a-z0-9_.-]+$/),
-  version: z.string().regex(/^\\d+\\.\\d+\\.\\d+(?:-[a-zA-Z0-9.-]+)?$/),
+  version: z.string().regex(/^\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?$/),
   kind: AssetKind,
   name: z.string().min(1),
   description: z.string().optional(),
@@ -60,6 +60,6 @@ export type AppManifest = z.infer<typeof AppManifestSchema>;
 
 export type BusinessAsset = A2UIComponent | A2APICapability | A2WFWorkflow | AppManifest;
 export type Identity = { userId: string; tenantId?: string; roles: string[]; permissions?: string[] };
-export type ExecutionContext = { identity: Identity; appId: string; traceId: string; requestId: string; idempotencyKey?: string };
+export type ExecutionContext = { identity: Identity; appId: string; traceId: string; requestId: string; idempotencyKey?: string; signal?: AbortSignal };
 export type RuntimeError = { code: string; message: string; retryable: boolean; fieldErrors?: Record<string, string[]> };
 export type RuntimeResult<T = unknown> = { success: true; requestId: string; traceId: string; capability: string; data: T; effects: string[] } | { success: false; requestId: string; traceId: string; capability: string; error: RuntimeError };
