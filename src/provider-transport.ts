@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { Adapter } from "./runtime.js";
-import type { ExecutionContext, RuntimeError } from "./types.js";
+import type { ExecutionContext } from "./types.js";
 import type { ProviderRegistry, RegisteredProvider } from "./provider.js";
 
 export type ProviderBinding = {
