@@ -10,6 +10,8 @@ This Maven reactor contains:
 Implement one explicit handler per published capability pin. Declare its required roles, permissions and tenant requirement in the handler. Keep the domain service and its transaction boundaries unchanged.
 
 ```java
+import java.util.Set;
+
 @Component
 public final class CreateOrderHandler implements A2ApiHandler<CreateOrderInput, CreateOrderOutput> {
     private final OrderService orders;
@@ -22,6 +24,7 @@ public final class CreateOrderHandler implements A2ApiHandler<CreateOrderInput, 
     public Set<String> requiredRoles() { return Set.of("merchant_owner"); }
     public Set<String> requiredPermissions() { return Set.of("order:create"); }
     public boolean tenantRequired() { return true; }
+    public boolean idempotencyRequired() { return true; }
 
     public CreateOrderOutput handle(CreateOrderInput input, A2ApiContext context) {
         return orders.create(input, context.identity().tenantId(), context.identity().userId());
@@ -46,4 +49,4 @@ cd sdks/java
 mvn test
 ```
 
-This is the initial provider endpoint slice, not a complete production Java SDK: the typed Java consumer client, registration/heartbeat client, JSON Schema validator and contract conformance suite are pending.
+This is the initial provider endpoint and typed consumer-client slice, not a complete production Java SDK: the registration/heartbeat client, local JSON Schema validator and full contract conformance suite are pending.
