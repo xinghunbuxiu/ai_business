@@ -114,6 +114,8 @@ CREATE TABLE IF NOT EXISTS a2wf_executions (
   lease_owner TEXT,
   lease_expires_at TIMESTAMPTZ
 );
+ALTER TABLE a2wf_executions ADD COLUMN IF NOT EXISTS lease_owner TEXT;
+ALTER TABLE a2wf_executions ADD COLUMN IF NOT EXISTS lease_expires_at TIMESTAMPTZ;
 CREATE INDEX IF NOT EXISTS idx_a2wf_executions_tenant_status
   ON a2wf_executions (tenant_id, status, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_a2wf_executions_lease
