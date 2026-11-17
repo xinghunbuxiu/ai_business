@@ -38,8 +38,8 @@ describe("PostgresProviderRepository", () => {
   });
   it("renews only active, unexpired leases and rejects invalid windows", async () => {
     const db = new FakeDb(); const repo = new PostgresProviderRepository(db);
-    await expect(repo.renewLease(key,new Date("2026-11-17T00:00:00Z"),new Date("2026-11-17T00:05:00Z"))).rejects.toThrow(/PROVIDER_LEASE_RENEWAL_REJECTED/);
-    await expect(repo.renewLease(key,new Date("2026-11-17T00:00:00Z"),new Date("2026-11-16T00:00:00Z"))).rejects.toThrow(/PROVIDER_LEASE_INVALID/);
+    await expect(repo.renewLease(key,new Date("2099-01-01T00:00:00Z"),new Date("2099-01-01T00:05:00Z"))).rejects.toThrow(/PROVIDER_LEASE_RENEWAL_REJECTED/);
+    await expect(repo.renewLease(key,new Date("2099-01-01T00:00:00Z"),new Date("2098-12-31T00:00:00Z"))).rejects.toThrow(/PROVIDER_LEASE_INVALID/);
   });
   it("supports state transitions and expiry cleanup", async () => {
     const db = new FakeDb(); const repo = new PostgresProviderRepository(db);
