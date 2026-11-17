@@ -28,9 +28,9 @@ export type BaseAsset = z.infer<typeof BaseAssetSchema>;
 export const A2UIComponentSchema = BaseAssetSchema.extend({
   kind: z.literal("a2ui"),
   protocolVersion: z.literal(A2UI_PROTOCOL_VERSION),
-  component: z.string().min(1),
+  component: z.enum(["Form", "Table", "Card", "List", "Chart", "OrderSummary", "EmployeeForm"]),
   propsSchema: z.record(z.unknown()).default({}),
-  events: z.array(z.object({ name: z.string(), action: z.string() })).default([]),
+  events: z.array(z.object({ name: z.string().min(1), target: z.object({ kind: z.enum(["a2api", "a2wf"]), id: z.string().min(1), version: z.string().regex(/^\\d+\\.\\d+\\.\\d+(?:-[a-zA-Z0-9.-]+)?$/) }) })).default([]),
   layout: z.record(z.unknown()).optional()
 });
 export type A2UIComponent = z.infer<typeof A2UIComponentSchema>;
@@ -72,8 +72,18 @@ export const AppManifestSchema = BaseAssetSchema.extend({
   kind: z.literal("app"),
   protocolVersion: z.literal(APP_MANIFEST_PROTOCOL_VERSION),
   entrypoints: z.array(z.object({ id: z.string(), label: z.string(), roles: z.array(z.string()), intent: z.string().optional(), component: z.string().optional(), workflow: z.string().optional() })),
-  assets: z.array(z.object({ id: z.string(), version: z.string(), kind: AssetKind })),
+  assets: z.array(z.object({ id: z.string(), version: z.string().regex(/^\\d+\\.\\d+\\.\\d+(?:-[a-zA-Z0-9.-]+)?$/), kind: z.enum(["a2ui", "a2api", "a2wf"]) })).min(1),
   defaultRole: z.string().optional()
+}).superRefine((app, ctx) => {
+  for (const [index, entry] of app.entrypoints.entries()) {
+    if (!entry.intent && !entry.component && !entry.workflow) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["entrypoints", index], message: "Entrypoints require an intent, component or workflow target" });
+  }
+  const seen = new Set<string>();
+  for (const [index, dependency] of app.assets.entries()) {
+    const key = `${dependency.kind}:${dependency.id}@${dependency.version}`;
+    if (seen.has(key)) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["assets", index], message: "Duplicate app dependency pin" });
+    seen.add(key);
+  }
 });
 export type AppManifest = z.infer<typeof AppManifestSchema>;
 
