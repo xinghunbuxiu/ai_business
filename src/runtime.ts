@@ -24,14 +24,16 @@ export class ExecutionRuntime {
   private readonly ajv = new AjvClass({ allErrors: true, strict: false });
   readonly events: RuntimeEvent[] = [];
   private readonly idempotencyStore?: IdempotencyStore;
-  private readonly idempotencyTtlSeconds: number;\n  private readonly auditStore?: AuditStore;
+  private readonly idempotencyTtlSeconds: number;
+  private readonly auditStore?: AuditStore;
 
   constructor(
     private readonly registry: AssetRegistry,
     private readonly onEvent?: (event: RuntimeEvent) => void,
     options: ExecutionRuntimeOptions = {}
   ) {
-    this.idempotencyStore = options.idempotencyStore;\n    this.auditStore = options.auditStore;
+    this.idempotencyStore = options.idempotencyStore;
+    this.auditStore = options.auditStore;
     this.idempotencyTtlSeconds = options.idempotencyTtlSeconds ?? 86_400;
     if (!Number.isInteger(this.idempotencyTtlSeconds) || this.idempotencyTtlSeconds < 60 || this.idempotencyTtlSeconds > 31_536_000) {
       throw new Error("IDEMPOTENCY_TTL_INVALID: idempotencyTtlSeconds must be between 60 and 31536000");
@@ -158,7 +160,10 @@ export class ExecutionRuntime {
     const adapter = this.adapters.get(capability.mapping.adapter);
     if (!adapter) return fail("ADAPTER_NOT_CONFIGURED", `Adapter '${capability.mapping.adapter}' is not registered`);
 
-    const auditContext = { tenantId: identity.tenantId, actorId: identity.userId, appId: options.appId ?? "runtime" };\n    if (!await this.emit({ type: "execution.started", traceId, requestId, capability: capabilityId, at: new Date().toISOString(), ...auditContext })) {\n      return fail("AUDIT_PERSISTENCE_FAILED", "Execution audit could not be persisted; the business adapter was not invoked");\n    }
+    const auditContext = { tenantId: identity.tenantId, actorId: identity.userId, appId: options.appId ?? "runtime" };
+    if (!await this.emit({ type: "execution.started", traceId, requestId, capability: capabilityId, at: new Date().toISOString(), ...auditContext })) {
+      return fail("AUDIT_PERSISTENCE_FAILED", "Execution audit could not be persisted; the business adapter was not invoked");
+    }
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
       const timeout = new Promise<never>((_, reject) => {
@@ -207,7 +212,13 @@ export class ExecutionRuntime {
     return result;
   }
 
-  private async emit(event: RuntimeEvent): Promise<boolean> {\n    this.events.push(event);\n    try { this.onEvent?.(event); } catch { /* observers must not change execution outcome */ }\n    if (!this.auditStore) return true;\n    try { await this.auditStore.append(runtimeEventToAuditRecord(event)); return true; }\n    catch { return false; }\n  }
+  private async emit(event: RuntimeEvent): Promise<boolean> {
+    this.events.push(event);
+    try { this.onEvent?.(event); } catch { /* observers must not change execution outcome */ }
+    if (!this.auditStore) return true;
+    try { await this.auditStore.append(runtimeEventToAuditRecord(event)); return true; }
+    catch { return false; }
+  }
 }
 
 function stableStringify(value: unknown): string {
