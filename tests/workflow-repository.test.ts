@@ -99,7 +99,7 @@ describe("PostgresWorkflowExecutionRepository", () => {
     expect(await repository.renew(execution.id, "worker-b", epochA!, 30)).toBe(false);
     expect(await repository.renew(execution.id, "worker-a", epochA!, 30)).toBe(true);
     const loaded = await repository.get(execution.id);
-    await expect(repository.save({ ...loaded!, status: "awaiting_input" }, 1, "worker-b")).rejects.toThrow("WORKFLOW_EXECUTION_CONFLICT");
+    await expect(repository.save({ ...loaded!, status: "awaiting_input" }, 1, "worker-b", epochA!)).rejects.toThrow("WORKFLOW_EXECUTION_CONFLICT");
   });
 
   it("releases a lease so another worker can recover the execution", async () => {
