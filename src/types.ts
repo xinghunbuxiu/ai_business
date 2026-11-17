@@ -71,7 +71,7 @@ export type A2WFWorkflow = z.infer<typeof A2WFWorkflowSchema>;
 export const AppManifestSchema = BaseAssetSchema.extend({
   kind: z.literal("app"),
   protocolVersion: z.literal(APP_MANIFEST_PROTOCOL_VERSION),
-  entrypoints: z.array(z.object({ id: z.string(), label: z.string(), roles: z.array(z.string()), intent: z.string().optional(), component: z.string().optional(), workflow: z.string().optional() })),
+  entrypoints: z.array(z.object({ id: z.string(), label: z.string(), roles: z.array(z.string()), intent: z.string().optional(), component: z.string().optional(), workflow: z.string().optional() })).min(1),
   assets: z.array(z.object({ id: z.string(), version: z.string().regex(/^\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?$/), kind: z.enum(["a2ui", "a2api", "a2wf"]) })).min(1),
   defaultRole: z.string().optional()
 }).superRefine((app, ctx) => {
