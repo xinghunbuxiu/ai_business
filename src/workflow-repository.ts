@@ -56,7 +56,7 @@ export class PostgresWorkflowExecutionRepository implements WorkflowExecutionRep
   async claim(executionId: string, workerId: string, leaseSeconds: number): Promise<boolean> {
     this.validateLease(workerId, leaseSeconds);
     const result = await this.db.query(
-      "UPDATE a2wf_executions SET lease_owner=$2, lease_expires_at=NOW() + ($3 * INTERVAL '1 second') WHERE execution_id=$1 AND status IN ('running','awaiting_input','awaiting_confirmation') AND (lease_expires_at IS NULL OR lease_expires_at <= NOW() OR lease_owner=$2)",
+      "UPDATE a2wf_executions SET lease_owner=$2, lease_expires_at=NOW() + ($3 * INTERVAL '1 second') WHERE execution_id=$1 AND status IN ('running','awaiting_input','awaiting_confirmation') AND (lease_expires_at IS NULL OR lease_expires_at <= NOW())",
       [executionId, workerId, leaseSeconds]
     );
     return (result.rowCount ?? 0) === 1;
