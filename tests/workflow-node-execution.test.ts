@@ -9,18 +9,22 @@ import type { WorkflowSqlExecutor } from "../src/workflow-repository.js";
 
 class FakeNodeDb implements WorkflowSqlExecutor {
   rows = new Map<string, Record<string, unknown>>();
+  leaseEpochs = new Map<string, number>();
   async query<T extends Record<string, unknown>>(sql: string, params: readonly unknown[] = []): Promise<{ rows: T[]; rowCount: number }> {
     if (sql.includes("INSERT INTO a2wf_node_attempts")) {
       const id = String(params[0]);
       const executionId = String(params[1]);
       const nodeId = String(params[4]);
+      const leaseEpoch = sql.includes("FROM a2wf_executions") ? Number(params[6]) : undefined;
+      if (leaseEpoch !== undefined && this.leaseEpochs.get(executionId) !== leaseEpoch) return { rows: [], rowCount: 0 };
       const attempt = [...this.rows.values()].filter(row => row.execution_id === executionId && row.node_id === nodeId).length + 1;
-      this.rows.set(id, { attempt_id: id, execution_id: executionId, node_id: nodeId, attempt, status: "running", input_sha256: params[5] });
+      this.rows.set(id, { attempt_id: id, execution_id: executionId, node_id: nodeId, attempt, status: "running", input_sha256: params[5], lease_epoch: leaseEpoch ?? null });
       return { rows: [{ attempt } as unknown as T], rowCount: 1 };
     }
     if (sql.includes("UPDATE a2wf_node_attempts")) {
       const row = this.rows.get(String(params[0]));
-      if (!row || row.status !== "running") return { rows: [], rowCount: 0 };
+      const leaseEpoch = params[4] == null ? undefined : Number(params[4]);
+      if (!row || row.status !== "running" || (row.lease_epoch ?? null) !== (leaseEpoch ?? null) || (leaseEpoch !== undefined && this.leaseEpochs.get(String(row.execution_id)) !== leaseEpoch)) return { rows: [], rowCount: 0 };
       Object.assign(row, { status: params[1], output_sha256: params[2], error_code: params[3] });
       return { rows: [], rowCount: 1 };
     }
@@ -56,6 +60,17 @@ describe("PostgresWorkflowNodeExecutionStore", () => {
     await expect(store.finish(ref, "failed", undefined, "LATE_ERROR")).rejects.toThrow("WORKFLOW_NODE_ATTEMPT_FINALIZE_CONFLICT");
   });
 
+  it("rejects stale lease epochs when starting or finalizing attempts", async () => {
+    const db = new FakeNodeDb();
+    db.leaseEpochs.set(execution.id, 7);
+    const store = new PostgresWorkflowNodeExecutionStore(db);
+    const ref = await store.start(execution, "charge", { cents: 100 }, 7);
+    expect(db.rows.get(ref.attemptId)?.lease_epoch).toBe(7);
+    db.leaseEpochs.set(execution.id, 8);
+    await expect(store.finish(ref, "succeeded", { ok: true })).rejects.toThrow("WORKFLOW_NODE_ATTEMPT_FINALIZE_CONFLICT");
+    await expect(store.start(execution, "charge", { cents: 100 }, 7)).rejects.toThrow("WORKFLOW_LEASE_LOST");
+  });
+
   it("supports failed and uncertain outcomes and defines recovery indexes", async () => {
     const db = new FakeNodeDb();
     const store = new PostgresWorkflowNodeExecutionStore(db);
@@ -66,5 +81,6 @@ describe("PostgresWorkflowNodeExecutionStore", () => {
     expect(db.rows.get(unknown.attemptId)?.status).toBe("unknown");
     expect(WORKFLOW_NODE_ATTEMPTS_POSTGRES_MIGRATION).toContain("UNIQUE (execution_id, node_id, attempt)");
     expect(WORKFLOW_NODE_ATTEMPTS_POSTGRES_MIGRATION).toContain("idx_a2wf_node_attempts_status");
+    expect(WORKFLOW_NODE_ATTEMPTS_POSTGRES_MIGRATION).toContain("lease_epoch BIGINT");
   });
 });
