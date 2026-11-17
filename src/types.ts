@@ -48,7 +48,7 @@ export type A2APICapability = z.infer<typeof A2APICapabilitySchema>;
 
 export const A2WFStepSchema = z.object({
   id: z.string().min(1), type: z.enum(["action", "form", "approval", "condition", "end"]).default("action"),
-  capability: z.string().optional(), capabilityVersion: z.string().regex(/^\\d+\\.\\d+\\.\\d+(?:-[a-zA-Z0-9.-]+)?$/).optional(), component: z.string().optional(), componentVersion: z.string().regex(/^\\d+\\.\\d+\\.\\d+(?:-[a-zA-Z0-9.-]+)?$/).optional(), input: z.record(z.unknown()).default({}),
+  capability: z.string().optional(), capabilityVersion: z.string().regex(/^\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?$/).optional(), component: z.string().optional(), componentVersion: z.string().regex(/^\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?$/).optional(), input: z.record(z.unknown()).default({}),
   requiresConfirmation: z.boolean().default(false), next: z.string().optional(), onTrue: z.string().optional(), onFalse: z.string().optional(),
   condition: z.object({ path: z.string().min(1), operator: z.enum(["eq", "neq", "exists", "truthy"]), value: z.unknown().optional() }).optional()
 }).superRefine((step, ctx) => {
