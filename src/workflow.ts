@@ -120,7 +120,9 @@ export class WorkflowRunner {
         return { execution: structuredClone(execution), waiting: { type: "confirmation", stepId: step.id, props: this.resolveBindings(step.input, execution) as Record<string, unknown> } };
       }
       const input = this.resolveBindings(step.input, execution) as Record<string, unknown>;
+      const heartbeat = this.startLeaseHeartbeat(execution.id);
       const result = await this.runtime.execute(step.capability!, input, execution.identity, { idempotencyKey: execution.id + ":" + step.id, appId: execution.appId, capabilityVersion: step.capabilityVersion });
+      if (!await heartbeat.stop()) throw new Error("WORKFLOW_LEASE_LOST");
       if (!result.success) {
         execution.history.push({ stepId: step.id, status: "failed", error: result.error });
         return this.fail(execution, result.error.code);
@@ -155,6 +157,26 @@ export class WorkflowRunner {
   private async fail(execution: WorkflowExecution, code: string): Promise<WorkflowResult> {
     execution.status = "failed"; execution.updatedAt = new Date().toISOString(); await this.persist(execution); await this.release(execution.id);
     this.emit("workflow.failed", execution, execution.currentStepId, code); return { execution: structuredClone(execution) };
+  }
+  private startLeaseHeartbeat(executionId: string): { stop: () => Promise<boolean> } {
+    if (!this.options.repository) return { stop: async () => true };
+    let lost = false;
+    let inFlight: Promise<void> | undefined;
+    const interval = Math.max(1000, Math.floor(this.leaseSeconds * 1000 / 3));
+    const timer = setInterval(() => {
+      if (inFlight || lost) return;
+      inFlight = this.options.repository!.renew(executionId, this.workerId, this.leaseSeconds)
+        .then(ok => { if (!ok) lost = true; })
+        .catch(() => { lost = true; })
+        .finally(() => { inFlight = undefined; });
+    }, interval);
+    return {
+      stop: async () => {
+        clearInterval(timer);
+        if (inFlight) await inFlight;
+        return !lost;
+      }
+    };
   }
   private async claim(executionId: string): Promise<void> {
     if (!this.options.repository) return;
