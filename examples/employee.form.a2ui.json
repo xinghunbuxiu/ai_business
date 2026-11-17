@@ -29,11 +29,16 @@
   "events": [
     {
       "name": "submit",
-      "action": "employee.create"
+      "target": {
+        "kind": "a2api",
+        "id": "employee.create",
+        "version": "1.0.0"
+      }
     }
   ],
   "layout": {
     "title": "添加员工",
     "submitLabel": "确认添加"
-  }
+  },
+  "protocolVersion": "1.0.0"
 }
