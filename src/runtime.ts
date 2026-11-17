@@ -2,6 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import Ajv, { type ValidateFunction } from "ajv";
 import { A2API_PROTOCOL_VERSION, type A2APIInvocation, type A2APICapability, type ExecutionContext, type RuntimeResult } from "./types.js";
 import { AssetRegistry } from "./registry.js";
+import type { IdempotencyStore } from "./idempotency.js";
 
 type AjvConstructor = new (options: { allErrors: boolean; strict: boolean }) => { compile(schema: Record<string, unknown>): ValidateFunction };
 const AjvClass = Ajv as unknown as AjvConstructor;
@@ -9,6 +10,8 @@ const AjvClass = Ajv as unknown as AjvConstructor;
 export type Adapter = (input: unknown, context: ExecutionContext) => Promise<unknown>;
 export type PreconditionHandler = (input: unknown, context: ExecutionContext) => Promise<boolean>;
 export type RuntimeEvent = { type: "execution.started" | "execution.succeeded" | "execution.failed"; traceId: string; requestId: string; capability: string; at: string; detail?: unknown };
+
+export type ExecutionRuntimeOptions = { idempotencyStore?: IdempotencyStore; idempotencyTtlSeconds?: number };
 
 export class ExecutionRuntime {
   private readonly adapters = new Map<string, Adapter>();
@@ -18,8 +21,20 @@ export class ExecutionRuntime {
   private readonly validators = new Map<string, ValidateFunction>();
   private readonly ajv = new AjvClass({ allErrors: true, strict: false });
   readonly events: RuntimeEvent[] = [];
+  private readonly idempotencyStore?: IdempotencyStore;
+  private readonly idempotencyTtlSeconds: number;
 
-  constructor(private readonly registry: AssetRegistry, private readonly onEvent?: (event: RuntimeEvent) => void) {}
+  constructor(
+    private readonly registry: AssetRegistry,
+    private readonly onEvent?: (event: RuntimeEvent) => void,
+    options: ExecutionRuntimeOptions = {}
+  ) {
+    this.idempotencyStore = options.idempotencyStore;
+    this.idempotencyTtlSeconds = options.idempotencyTtlSeconds ?? 86_400;
+    if (!Number.isInteger(this.idempotencyTtlSeconds) || this.idempotencyTtlSeconds < 60 || this.idempotencyTtlSeconds > 31_536_000) {
+      throw new Error("IDEMPOTENCY_TTL_INVALID: idempotencyTtlSeconds must be between 60 and 31536000");
+    }
+  }
 
   registerPrecondition(name: string, handler: PreconditionHandler): void {
     if (this.preconditions.has(name)) throw new Error("PRECONDITION_EXISTS: " + name);
@@ -40,7 +55,9 @@ export class ExecutionRuntime {
     if (cached) return cached.fingerprint === fingerprint ? cached.result : conflict();
     const pending = this.inFlight.get(key);
     if (pending) return pending.fingerprint === fingerprint ? pending.promise : conflict();
-    const promise = this.executeOnce(capabilityId, input, identity, options);
+    const promise = this.idempotencyStore
+      ? this.executeWithStore(key, fingerprint, capabilityId, input, identity, options, conflict)
+      : this.executeOnce(capabilityId, input, identity, options);
     this.inFlight.set(key, { fingerprint, promise });
     try {
       const result = await promise;
@@ -48,6 +65,54 @@ export class ExecutionRuntime {
       return result;
     } finally {
       this.inFlight.delete(key);
+    }
+  }
+
+  private async executeWithStore(
+    key: string,
+    fingerprint: string,
+    capabilityId: string,
+    input: unknown,
+    identity: ExecutionContext["identity"],
+    options: { requestId?: string; traceId?: string; idempotencyKey?: string; appId?: string; capabilityVersion?: string },
+    conflict: () => RuntimeResult
+  ): Promise<RuntimeResult> {
+    const requestId = options.requestId ?? randomUUID();
+    const traceId = options.traceId ?? randomUUID();
+    const failure = (code: string, message: string, retryable: boolean): RuntimeResult => ({
+      protocolVersion: A2API_PROTOCOL_VERSION, success: false, requestId, traceId, capability: capabilityId,
+      error: { code, message, retryable }
+    });
+    let reservation;
+    try {
+      reservation = await this.idempotencyStore!.reserve(key, fingerprint, this.idempotencyTtlSeconds);
+    } catch {
+      return failure("IDEMPOTENCY_STORE_UNAVAILABLE", "Durable idempotency storage is unavailable; the operation was not executed", true);
+    }
+    if (reservation.status === "conflict") return conflict();
+    if (reservation.status === "completed") return reservation.result;
+    if (reservation.status === "in_progress") {
+      return failure("IDEMPOTENCY_IN_PROGRESS", "An operation with this idempotency key is already executing", true);
+    }
+
+    let result: RuntimeResult;
+    try {
+      result = await this.executeOnce(capabilityId, input, identity, options);
+    } catch (error) {
+      try { await this.idempotencyStore!.release(key, fingerprint); } catch { /* reservation expiry is the recovery path */ }
+      throw error;
+    }
+    if (!result.success) {
+      try { await this.idempotencyStore!.release(key, fingerprint); } catch { /* reservation expiry is the recovery path */ }
+      return result;
+    }
+    try {
+      await this.idempotencyStore!.complete(key, fingerprint, result);
+      return result;
+    } catch {
+      // Keep the reservation locked: releasing after a successful side effect
+      // could allow a duplicate write. Recovery requires operator reconciliation.
+      return failure("IDEMPOTENCY_PERSISTENCE_FAILED", "Operation completed but its replay record could not be persisted; do not retry with a new key", false);
     }
   }
 
