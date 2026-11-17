@@ -43,10 +43,22 @@ export const A2APICapabilitySchema = BaseAssetSchema.extend({
 });
 export type A2APICapability = z.infer<typeof A2APICapabilitySchema>;
 
+export const A2WFStepSchema = z.object({
+  id: z.string().min(1), type: z.enum(["action", "form", "approval", "condition", "end"]).default("action"),
+  capability: z.string().optional(), component: z.string().optional(), input: z.record(z.unknown()).default({}),
+  requiresConfirmation: z.boolean().default(false), next: z.string().optional(), onTrue: z.string().optional(), onFalse: z.string().optional(),
+  condition: z.object({ path: z.string().min(1), operator: z.enum(["eq", "neq", "exists", "truthy"]), value: z.unknown().optional() }).optional()
+}).superRefine((step, ctx) => {
+  if (step.type === "action" && !step.capability) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["capability"], message: "Action steps require a capability" });
+  if (step.type === "form" && !step.component) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["component"], message: "Form steps require a component" });
+  if (step.type === "condition" && (!step.condition || !step.onTrue || !step.onFalse)) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["condition"], message: "Condition steps require condition, onTrue and onFalse" });
+});
 export const A2WFWorkflowSchema = BaseAssetSchema.extend({
-  kind: z.literal("a2wf"),
-  trigger: z.object({ intents: z.array(z.string()).min(1), roles: z.array(z.string()).default([]) }),
-  steps: z.array(z.object({ id: z.string(), capability: z.string().optional(), component: z.string().optional(), input: z.record(z.unknown()).default({}), requiresConfirmation: z.boolean().default(false) })).min(1)
+  kind: z.literal("a2wf"), trigger: z.object({ intents: z.array(z.string()).min(1), roles: z.array(z.string()).default([]) }), steps: z.array(A2WFStepSchema).min(1)
+}).superRefine((workflow, ctx) => {
+  const ids = new Set(workflow.steps.map(step => step.id));
+  if (ids.size !== workflow.steps.length) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["steps"], message: "Workflow step IDs must be unique" });
+  for (const step of workflow.steps) for (const target of [step.next, step.onTrue, step.onFalse]) if (target && !ids.has(target)) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["steps", step.id], message: `Unknown workflow transition target: ${target}` });
 });
 export type A2WFWorkflow = z.infer<typeof A2WFWorkflowSchema>;
 
