@@ -19,7 +19,6 @@
 - [x] Provider identity, exact capability pins, contract-hash verification and lease-aware in-memory registry
 - [x] HTTPS JSON provider transport, server-side binding resolution interface and exact-version Runtime adapter
 - [x] Initial Java Spring Boot provider starter and typed Runtime client
-- [ ] Durable provider registry, authenticated registration/heartbeat/revocation API and lease scheduler
 - [ ] Production provider policy router, health checks, circuit breaker and audit persistence
 - [ ] Java local JSON Schema validation and contract-hash self-verification
 - [ ] TypeScript/Python SDK packaging and REST/MCP/Control Bridge adapters
