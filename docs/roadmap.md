@@ -9,7 +9,7 @@
 - [x] Employee capability example and runtime tests
 
 ## Milestone 2 — Production hardening
-- [ ] Persistent registry (PostgreSQL) and content-addressed asset storage
+- [x] PostgreSQL asset-registry schema and persistence port (adapter implementation/RLS still pending)
 - [ ] JSON Schema validation for API input/output and dependency resolution
 - [ ] Signed release manifests, review approvals and compatibility checks
 - [ ] Full workflow runner with branching, compensation and human confirmation
