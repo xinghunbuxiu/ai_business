@@ -1,0 +1,86 @@
+{
+  "schemaVersion": "1.0",
+  "id": "employee.create",
+  "version": "1.0.0",
+  "kind": "a2api",
+  "name": "Create employee",
+  "description": "Create an employee in the current merchant tenant.",
+  "status": "draft",
+  "visibility": "system",
+  "permissions": [
+    "employee:create"
+  ],
+  "dependencies": [],
+  "inputSchema": {
+    "type": "object",
+    "required": [
+      "name",
+      "phone",
+      "role"
+    ],
+    "properties": {
+      "name": {
+        "type": "string",
+        "minLength": 1
+      },
+      "phone": {
+        "type": "string"
+      },
+      "role": {
+        "type": "string",
+        "enum": [
+          "manager",
+          "cashier",
+          "kitchen"
+        ]
+      },
+      "storeId": {
+        "type": "string"
+      }
+    }
+  },
+  "outputSchema": {
+    "type": "object",
+    "required": [
+      "employeeId",
+      "status"
+    ],
+    "properties": {
+      "employeeId": {
+        "type": "string"
+      },
+      "status": {
+        "type": "string"
+      }
+    }
+  },
+  "errors": [
+    {
+      "code": "PHONE_EXISTS",
+      "message": "Phone number is already registered",
+      "retryable": false
+    }
+  ],
+  "auth": {
+    "roles": [
+      "merchant_owner",
+      "store_manager"
+    ],
+    "tenantRequired": true
+  },
+  "preconditions": [
+    "store.active == true"
+  ],
+  "effects": [
+    "employee.created"
+  ],
+  "mapping": {
+    "adapter": "control-bridge",
+    "operation": "employee.create",
+    "timeoutMs": 10000
+  },
+  "idempotency": {
+    "required": true,
+    "keyFrom": "request.idempotencyKey"
+  }
+}
