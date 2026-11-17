@@ -109,8 +109,13 @@ export class ExecutionRuntime {
       return result;
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unknown adapter error";
-      this.emit({ type: "execution.failed", traceId, requestId, capability: capabilityId, at: new Date().toISOString(), detail: message });
-      return fail(message === "ADAPTER_TIMEOUT" ? "TIMEOUT" : "ADAPTER_ERROR", message, message === "ADAPTER_TIMEOUT");
+      const structured = error && typeof error === "object" && "code" in error && typeof (error as { code?: unknown }).code === "string"
+        ? error as { code: string; retryable?: boolean }
+        : undefined;
+      const code = message === "ADAPTER_TIMEOUT" ? "TIMEOUT" : structured?.code ?? "ADAPTER_ERROR";
+      const retryable = message === "ADAPTER_TIMEOUT" || structured?.retryable === true;
+      this.emit({ type: "execution.failed", traceId, requestId, capability: capabilityId, at: new Date().toISOString(), detail: { code, message } });
+      return fail(code, message, retryable);
     } finally {
       if (timer) clearTimeout(timer);
     }
