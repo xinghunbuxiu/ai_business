@@ -89,7 +89,7 @@ export function createProviderHttpServer(
   resolveIdentity: ProviderHttpIdentityResolver,
   options: ProviderHttpServerOptions = {}
 ): Server {
-  const basePath = (options.basePath ?? "/providers").replace(/\\/$/, "");
+  const basePath = (options.basePath ?? "/providers").replace(/\/$/, "");
   const maxBytes = options.maxRequestBytes ?? 256 * 1024;
 
   return createServer(async (request, response) => {
