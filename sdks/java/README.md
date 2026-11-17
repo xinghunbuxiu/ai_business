@@ -19,6 +19,9 @@ public final class CreateOrderHandler implements A2ApiHandler<CreateOrderInput, 
     public String capabilityId() { return "commerce.orders.create"; }
     public String capabilityVersion() { return "1.0.0"; }
     public Class<CreateOrderInput> inputType() { return CreateOrderInput.class; }
+    public Set<String> requiredRoles() { return Set.of("merchant_owner"); }
+    public Set<String> requiredPermissions() { return Set.of("order:create"); }
+    public boolean tenantRequired() { return true; }
 
     public CreateOrderOutput handle(CreateOrderInput input, A2ApiContext context) {
         return orders.create(input, context.identity().tenantId(), context.identity().userId());
