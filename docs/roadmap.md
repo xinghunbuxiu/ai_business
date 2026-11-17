@@ -5,7 +5,7 @@
 - [x] Asset validation and safe A2UI renderer allowlist
 - [x] Immutable version registration and publication gate
 - [x] Intent resolution with role and tenant visibility filtering
-- [x] Adapter-based execution, idempotency, trace events and error envelopes
+- [x] Adapter-based A2API execution, role/permission/tenant checks, named preconditions, idempotency, trace events and error envelopes
 - [x] Employee capability example and runtime tests
 
 ## Milestone 2 — Production hardening
