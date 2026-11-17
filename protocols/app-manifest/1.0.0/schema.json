@@ -1,0 +1,169 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai-business.dev/protocols/app-manifest/1.0.0/schema.json",
+  "title": "App Manifest Asset 1.0.0",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "protocolVersion",
+    "id",
+    "version",
+    "kind",
+    "name",
+    "entrypoints",
+    "assets"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "1.0"
+    },
+    "protocolVersion": {
+      "const": "1.0.0"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_.-]+$"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\\\d+\\\\.\\\\d+\\\\.\\\\d+(?:-[A-Za-z0-9.-]+)?$"
+    },
+    "kind": {
+      "const": "app"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "description": {
+      "type": "string"
+    },
+    "status": {
+      "enum": [
+        "draft",
+        "validated",
+        "testing",
+        "published",
+        "deprecated"
+      ]
+    },
+    "visibility": {
+      "enum": [
+        "system",
+        "tenant",
+        "private"
+      ]
+    },
+    "tenantId": {
+      "type": "string"
+    },
+    "permissions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "dependencies": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "version"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "entrypoints": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "roles"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "intent": {
+            "type": "string"
+          },
+          "component": {
+            "type": "string"
+          },
+          "workflow": {
+            "type": "string"
+          }
+        },
+        "anyOf": [
+          {
+            "required": [
+              "intent"
+            ]
+          },
+          {
+            "required": [
+              "component"
+            ]
+          },
+          {
+            "required": [
+              "workflow"
+            ]
+          }
+        ]
+      }
+    },
+    "assets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "version",
+          "kind"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string",
+            "pattern": "^\\\\d+\\\\.\\\\d+\\\\.\\\\d+(?:-[A-Za-z0-9.-]+)?$"
+          },
+          "kind": {
+            "enum": [
+              "a2ui",
+              "a2api",
+              "a2wf"
+            ]
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "defaultRole": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false
+}
