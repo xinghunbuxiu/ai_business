@@ -33,7 +33,7 @@ class FakeWorkflowPostgres implements WorkflowSqlExecutor {
     }
     if (sql.includes("SET lease_owner=NULL")) {
       const row = this.rows.get(id);
-      if (row?.leaseOwner === params[1]) { row.leaseOwner = undefined; row.leaseActive = false; }
+      if (row && row.leaseOwner === params[1]) { row.leaseOwner = undefined; row.leaseActive = false; }
       return { rows: [], rowCount: 1 };
     }
     if (sql.includes("UPDATE a2wf_executions")) {
