@@ -79,7 +79,7 @@ The SDK now defines a driver-neutral `ProviderRepository` and a PostgreSQL imple
 The repository persists the immutable registration envelope, provider state and lease expiry. Its primary key is the project/service/provider/environment/instance tuple. Active discovery filters by environment, exact capability ID/version, state and unexpired lease. Lease renewal is conditional on the instance still being active and unexpired.
 
 `ProviderControlPlane` adds the policy boundary around the repository:
-- Registration requires an authenticated project principal with `provider:register`.
+- Registration requires an authenticated provider principal with `provider:register`, scoped to its exact project, service and provider IDs.
 - The project in the registration must equal the authenticated project.
 - The server must provision and authorize the `bindingRef`; clients cannot supply an endpoint URL or credentials.
 - Every capability must be a published A2API asset with a matching contract hash.
