@@ -8,7 +8,7 @@ export type WorkflowStatus = "running" | "awaiting_input" | "awaiting_confirmati
 export type WorkflowExecution = {
   id: string; protocolVersion: "1.0.0"; workflowId: string; workflowVersion: string; appId: string; status: WorkflowStatus; currentStepId?: string;
   triggerInput: Record<string, unknown>; identity: Identity; outputs: Record<string, unknown>;
-  history: Array<{ stepId: string; status: string; output?: unknown; error?: unknown }>;
+  history: Array<{ stepId: string; status: string; output?: unknown; error?: unknown; actorId?: string; occurredAt?: string }>;
   createdAt: string; updatedAt: string; revision?: number;
 };
 export type WorkflowResult = { execution: WorkflowExecution; waiting?: { type: "input" | "confirmation"; stepId: string; component?: string; props?: Record<string, unknown> } };
@@ -83,11 +83,12 @@ export class WorkflowRunner {
     }
     if (execution.status === "awaiting_confirmation") {
       if (response.confirmed !== true) {
-        execution.status = "failed"; execution.history.push({ stepId: step.id, status: "rejected" });
+        execution.status = "failed"; execution.history.push({ stepId: step.id, status: "rejected", actorId: caller?.userId, occurredAt: new Date().toISOString() });
         execution.updatedAt = new Date().toISOString(); await this.persist(execution); await this.release(execution.id); this.emit("workflow.failed", execution, step.id, "Confirmation rejected");
         return { execution: structuredClone(execution) };
       }
       execution.outputs[step.id] = { confirmed: true };
+      execution.history.push({ stepId: step.id, status: "approved", actorId: caller?.userId, occurredAt: new Date().toISOString() });
       if (step.type !== "action") execution.currentStepId = step.next ?? this.nextStep(workflow, step.id);
     } else {
       execution.outputs[step.id] = response; execution.history.push({ stepId: step.id, status: "completed", output: response });
