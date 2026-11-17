@@ -7,7 +7,8 @@ An asset-driven runtime for building and operating AI-native business applicatio
 ## Protocol baseline
 
 - Frozen suite: [A2API 1.0.0](docs/a2api.md), [A2WF 1.0.0](docs/a2wf.md), [A2UI 1.0.0](docs/a2ui.md), and [App Manifest 1.0.0](docs/app-manifest.md). See the [suite contract](docs/protocol-suite.md) and [protocol manifest](protocols/manifest.json). Protocol versions, asset versions and runtime releases are independent; every release pins exact dependency versions.
-\n## Implemented kernel
+
+## Implemented kernel
 
 - Typed contracts and Zod structural validation for A2UI, A2API, A2WF and App Manifest.
 - Publication gate requiring passing test evidence; published versions cannot be overwritten.
@@ -21,7 +22,10 @@ An asset-driven runtime for building and operating AI-native business applicatio
 ## Cross-project integration
 
 - [A2API Java adapter design](docs/a2api-java.md) defines Java/Spring provider and consumer mappings.
-- [Cross-project Provider Registration 1.0.0](docs/provider-registration.md) defines project/service/provider identity, namespaced capability IDs, registration lifecycle and routing. Its Zod schema and in-memory provider registry are implemented as a first domain-core slice; durable registration storage, authenticated registration endpoints and routing transport remain pending. The four core protocols remain frozen at 1.0.0.
+- [Cross-project Provider Registration 1.0.0](docs/provider-registration.md) defines project/service/provider identity, namespaced capability IDs, registration lifecycle and routing.
+- TypeScript Runtime now has a fail-closed provider binding registry, HTTPS JSON transport, exact-version adapter factory and response correlation checks. See [provider transport contract](docs/provider-transport.md).
+- Initial [Java 17 SDK](sdks/java/README.md) includes a framework-neutral core, Spring Boot provider endpoint, exact-version handler registry, verified identity resolver contract and typed Runtime client. Durable registration, secret-manager integration, Java JSON Schema validation and production hardening remain pending.
+- The four core protocols remain frozen at 1.0.0.
 
 ## Architecture and persistence
 
