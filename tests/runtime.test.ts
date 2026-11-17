@@ -100,6 +100,21 @@ describe("ExecutionRuntime", () => {
     if (!result.success) expect(result.error.code).toBe("FORBIDDEN");
   });
 
+  it("rejects unsupported A2API protocol versions and resolves an explicitly pinned capability version", async () => {
+    const old = { ...capability, version: "1.0.0" };
+    const next = { ...capability, version: "1.1.0", name: "Create employee v1.1" };
+    const registry = new AssetRegistry(); registry.register(old); registry.publish(old.id, old.version); registry.register(next); registry.publish(next.id, next.version);
+    const runtime = new ExecutionRuntime(registry);
+    runtime.registerAdapter("control", async (_input, context) => ({ employeeId: context.appId, status: "created" }));
+    const identity = { userId: "u", tenantId: "t", roles: ["merchant_owner"], permissions: ["employee:create"] };
+    const result = await runtime.execute("employee.create", { name: "A" }, identity, { idempotencyKey: "pin", capabilityVersion: "1.0.0" });
+    expect(result.success).toBe(true);
+    if (result.success) expect(result.data).toMatchObject({ employeeId: "runtime" });
+    const rejected = await runtime.executeInvocation({ protocolVersion: "2.0.0" as "1.0.0", capabilityId: "employee.create", capabilityVersion: "1.0.0", requestId: "r", traceId: "t", appId: "app", idempotencyKey: "k", input: { name: "A" } }, identity);
+    expect(rejected.success).toBe(false);
+    if (!rejected.success) expect(rejected.error.code).toBe("UNSUPPORTED_PROTOCOL_VERSION");
+  });
+
   it("enforces declared A2API preconditions before invoking the adapter", async () => {
     const guarded = { ...capability, version: "1.0.3", preconditions: ["employee.active"] };
     const registry = publishedRegistry(guarded);
