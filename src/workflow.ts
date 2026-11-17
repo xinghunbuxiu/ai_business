@@ -53,7 +53,7 @@ export class WorkflowRunner {
     if (execution.status === "awaiting_confirmation") {
       if (response.confirmed !== true) {
         execution.status = "failed"; execution.history.push({ stepId: step.id, status: "rejected" });
-        execution.updatedAt = new Date().toISOString(); this.emit("workflow.failed", execution, step.id, "Confirmation rejected");
+        execution.updatedAt = new Date().toISOString(); await this.persist(execution); this.emit("workflow.failed", execution, step.id, "Confirmation rejected");
         return { execution: structuredClone(execution) };
       }
       execution.outputs[step.id] = { confirmed: true };
