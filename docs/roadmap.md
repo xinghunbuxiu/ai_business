@@ -12,7 +12,7 @@
 - [x] PostgreSQL asset-registry schema and persistence port (adapter implementation/RLS still pending)
 - [ ] JSON Schema validation for API input/output and dependency resolution
 - [ ] Signed release manifests, review approvals and compatibility checks
-- [ ] Full workflow runner with branching, compensation and human confirmation
+- [x] Initial A2WF runner: action steps, forms, approval pauses, conditions, transitions and execution trace (durable recovery and compensation pending)
 - [ ] Durable idempotency store and distributed locking
 - [ ] Audit/event persistence, OpenTelemetry export and trace query API
 - [ ] REST API server, authentication middleware and OpenAPI document
