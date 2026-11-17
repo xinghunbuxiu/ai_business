@@ -48,7 +48,7 @@ export type A2APICapability = z.infer<typeof A2APICapabilitySchema>;
 
 export const A2WFStepSchema = z.object({
   id: z.string().min(1), type: z.enum(["action", "form", "approval", "condition", "end"]).default("action"),
-  capability: z.string().optional(), capabilityVersion: z.string().regex(/^\\d+\\.\\d+\\.\\d+(?:-[a-zA-Z0-9.-]+)?$/).optional(), component: z.string().optional(), componentVersion: z.string().optional(), input: z.record(z.unknown()).default({}),
+  capability: z.string().optional(), capabilityVersion: z.string().regex(/^\\d+\\.\\d+\\.\\d+(?:-[a-zA-Z0-9.-]+)?$/).optional(), component: z.string().optional(), componentVersion: z.string().regex(/^\\d+\\.\\d+\\.\\d+(?:-[a-zA-Z0-9.-]+)?$/).optional(), input: z.record(z.unknown()).default({}),
   requiresConfirmation: z.boolean().default(false), next: z.string().optional(), onTrue: z.string().optional(), onFalse: z.string().optional(),
   condition: z.object({ path: z.string().min(1), operator: z.enum(["eq", "neq", "exists", "truthy"]), value: z.unknown().optional() }).optional()
 }).superRefine((step, ctx) => {
@@ -77,4 +77,5 @@ export type BusinessAsset = A2UIComponent | A2APICapability | A2WFWorkflow | App
 export type Identity = { userId: string; tenantId?: string; roles: string[]; permissions?: string[] };
 export type ExecutionContext = { identity: Identity; appId: string; traceId: string; requestId: string; idempotencyKey?: string; signal?: AbortSignal };
 export type RuntimeError = { code: string; message: string; retryable: boolean; fieldErrors?: Record<string, string[]> };
-export type RuntimeResult<T = unknown> = { success: true; requestId: string; traceId: string; capability: string; data: T; effects: string[] } | { success: false; requestId: string; traceId: string; capability: string; error: RuntimeError };
+export type A2APIInvocation<T = unknown> = { protocolVersion: typeof A2API_PROTOCOL_VERSION; capabilityId: string; capabilityVersion: string; requestId: string; traceId: string; appId: string; idempotencyKey: string; input: T };
+export type RuntimeResult<T = unknown> = { protocolVersion: typeof A2API_PROTOCOL_VERSION; success: true; requestId: string; traceId: string; capability: string; data: T; effects: string[] } | { protocolVersion: typeof A2API_PROTOCOL_VERSION; success: false; requestId: string; traceId: string; capability: string; error: RuntimeError };
