@@ -16,5 +16,8 @@ public interface A2ApiHandler<I, O> {
     /** Whether the verified identity must contain a tenant ID. */
     boolean tenantRequired();
 
+    /** Whether this operation requires a durable idempotency key. */
+    boolean idempotencyRequired();
+
     O handle(I input, A2ApiContext context);
 }
