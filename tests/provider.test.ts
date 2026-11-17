@@ -15,7 +15,7 @@ function setup() {
   const assets = new AssetRegistry();
   assets.register(capability);
   const published = assets.publish(capability.id, capability.version);
-  const providers = new ProviderRegistry(assets);
+  const providers = new ProviderRegistry(assets, bindingRef => bindingRef === "secret://prod/commerce/orders");
   const now = new Date("2026-11-17T00:00:00.000Z");
   const registration = {
     registrationProtocolVersion: "1.0.0",
