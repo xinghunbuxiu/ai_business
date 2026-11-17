@@ -7,7 +7,7 @@ This Maven reactor contains:
 
 ## Expose an existing Java service
 
-Implement one explicit handler per published capability pin. Keep the domain service and its transaction boundaries unchanged.
+Implement one explicit handler per published capability pin. Declare its required roles, permissions and tenant requirement in the handler. Keep the domain service and its transaction boundaries unchanged.
 
 ```java
 @Component
