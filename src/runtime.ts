@@ -28,9 +28,9 @@ export class ExecutionRuntime {
     this.adapters.set(name, adapter);
   }
 
-  async execute(capabilityId: string, input: unknown, identity: ExecutionContext["identity"], options: { requestId?: string; traceId?: string; idempotencyKey?: string; appId?: string } = {}): Promise<RuntimeResult> {
+  async execute(capabilityId: string, input: unknown, identity: ExecutionContext["identity"], options: { requestId?: string; traceId?: string; idempotencyKey?: string; appId?: string; capabilityVersion?: string } = {}): Promise<RuntimeResult> {
     if (!options.idempotencyKey) return this.executeOnce(capabilityId, input, identity, options);
-    const key = `${identity.tenantId ?? "global"}:${capabilityId}:${options.idempotencyKey}`;
+    const key = `${identity.tenantId ?? "global"}:${capabilityId}@${options.capabilityVersion ?? "latest"}:${options.idempotencyKey}`;
     const fingerprint = createHash("sha256").update(stableStringify({ input, identity: { userId: identity.userId, tenantId: identity.tenantId, roles: identity.roles, permissions: identity.permissions } })).digest("hex");
     const conflict = (): RuntimeResult => ({ success: false, requestId: options.requestId ?? randomUUID(), traceId: options.traceId ?? randomUUID(), capability: capabilityId, error: { code: "IDEMPOTENCY_CONFLICT", message: "The idempotency key was already used with a different input", retryable: false } });
     const cached = this.idempotency.get(key);
@@ -55,7 +55,7 @@ export class ExecutionRuntime {
       success: false, requestId, traceId, capability: capabilityId,
       error: { code, message, retryable, ...(fieldErrors ? { fieldErrors } : {}) }
     });
-    const stored = this.registry.get(capabilityId);
+    const stored = this.registry.get(capabilityId, options.capabilityVersion);
     if (!stored || stored.asset.kind !== "a2api") return fail("CAPABILITY_NOT_FOUND", "Published capability was not found");
     const capability = stored.asset as A2APICapability;
     if (!capability.auth.roles.some(role => identity.roles.includes(role))) return fail("FORBIDDEN", "Identity does not have a permitted role");
