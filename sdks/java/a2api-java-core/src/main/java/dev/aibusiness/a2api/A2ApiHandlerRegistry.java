@@ -34,9 +34,15 @@ public final class A2ApiHandlerRegistry {
         if (invocation.capabilityId() == null || invocation.capabilityVersion() == null) {
             throw new A2ApiException("CAPABILITY_VERSION_REQUIRED", "An exact capability ID and version are required", false);
         }
+        if (blank(invocation.requestId()) || blank(invocation.traceId()) || blank(invocation.appId())) {
+            throw new A2ApiException("INVOCATION_METADATA_INVALID", "requestId, traceId and appId are required", false);
+        }
         A2ApiHandler<?, ?> handler = handlers.get(key(invocation.capabilityId(), invocation.capabilityVersion()));
         if (handler == null) {
             throw new A2ApiException("CAPABILITY_NOT_FOUND", "No Java handler is registered for this exact capability version", false);
+        }
+        if (handler.idempotencyRequired() && blank(invocation.idempotencyKey())) {
+            throw new A2ApiException("IDEMPOTENCY_KEY_REQUIRED", "This capability requires an idempotency key", false);
         }
         authorize(handler, context.identity());
         return invokeTyped(handler, invocation.input(), context);
@@ -67,5 +73,6 @@ public final class A2ApiHandlerRegistry {
         }
     }
 
+    private static boolean blank(String value) { return value == null || value.isBlank(); }
     private static String key(String id, String version) { return id + "@" + version; }
 }
