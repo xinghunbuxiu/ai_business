@@ -9,3 +9,5 @@ export * from "./builder.js";
 export * from "./provider.js";
 export * from "./provider-transport.js";
 export * from "./http-server.js";
+export * from "./provider-repository.js";
+export * from "./provider-control-plane.js";
