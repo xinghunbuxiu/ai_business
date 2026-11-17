@@ -65,15 +65,16 @@ function keyFrom(actor: AuthenticatedProviderProject, value: unknown): ProviderR
 }
 
 function errorResponse(error: unknown): { status: number; body: unknown } {
+  const explicitStatus = error && typeof error === "object" && "statusCode" in error && typeof error.statusCode === "number" ? error.statusCode : undefined;
   const message = error instanceof Error ? error.message : "REQUEST_FAILED";
   const code = message.split(":", 1)[0] || "REQUEST_FAILED";
-  const status =
+  const status = explicitStatus ?? (
     code.includes("UNAUTHENTICATED") ? 401 :
     code.includes("FORBIDDEN") ? 403 :
     code.includes("NOT_FOUND") ? 404 :
     code.includes("ALREADY_REGISTERED") ? 409 :
     code.includes("INVALID") || code.includes("MISMATCH") || code.includes("NOT_PUBLISHED") ? 400 :
-    code.includes("NOT_ACTIVE") || code.includes("RENEWAL_REJECTED") ? 409 : 500;
+    code.includes("NOT_ACTIVE") || code.includes("RENEWAL_REJECTED") ? 409 : 500);
   const safeMessage = status === 500 ? "Provider control-plane request failed" : message.slice(0, 512);
   return { status, body: { error: { code, message: safeMessage } } };
 }
@@ -128,12 +129,20 @@ export function createProviderHttpServer(
         return;
       }
 
-      const statusMatch = path.match(new RegExp("^" + basePath.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&") + "/(dev|test|staging|prod)/([^/]+)/status$"));
-      if (request.method === "GET" && statusMatch) {
+      const statusParts = path.slice(basePath.length + 1).split("/");
+      if (request.method === "GET" && statusParts.length === 3 &&
+          environments.has(statusParts[0]) && statusParts[2] === "status") {
+        let instanceId: string;
+        try { instanceId = decodeURIComponent(statusParts[1]); }
+        catch { send(response, 400, { error: { code: "PROVIDER_INSTANCE_KEY_INVALID", message: "Invalid instanceId encoding" } }); return; }
+        if (!nonEmpty(instanceId)) {
+          send(response, 400, { error: { code: "PROVIDER_INSTANCE_KEY_INVALID", message: "instanceId is required" } });
+          return;
+        }
         const key: ProviderRecordKey = {
           projectId: actor.projectId, serviceId: actor.serviceId, providerId: actor.providerId,
-          environment: statusMatch[1] as ProviderRecordKey["environment"],
-          instanceId: decodeURIComponent(statusMatch[2])
+          environment: statusParts[0] as ProviderRecordKey["environment"],
+          instanceId
         };
         send(response, 200, { provider: await controlPlane.status(key, actor) });
         return;
