@@ -28,6 +28,8 @@ public final class CreateOrderHandler implements A2ApiHandler<CreateOrderInput, 
 
 Provide an `A2ApiIdentityResolver` bean. It must map an authenticated Spring Security principal to verified user, tenant, role and permission claims. The controller is not registered unless this bean exists. Configure Spring Security in the host application to protect `/internal/a2api/**` with OAuth2 resource server, mTLS gateway authentication or another approved service identity mechanism.
 
+For Java-to-Runtime calls, use `HttpA2ApiClient` with a preconfigured Spring `RestClient`; configure service authentication on that client. It sends the same pinned A2API invocation envelope and maps declared Runtime errors to `A2ApiException`.
+
 The request body is not an identity source. Never add tenant/roles/permissions fields to `A2ApiInvocation` and trust them.
 
 ## Contract and operational boundaries
