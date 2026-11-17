@@ -17,7 +17,7 @@ An asset-driven runtime for building and operating AI-native business applicatio
 
 ## Architecture and persistence
 
-See [architecture](docs/architecture.md), [A2WF execution contract](docs/a2wf.md), [PostgreSQL persistence design](docs/persistence.md), and [roadmap](docs/roadmap.md). The PostgreSQL schema is provided in `migrations/0001_asset_registry.sql`; the in-memory registry remains the current runtime adapter until the production database adapter and tenant RLS are implemented.
+See [architecture](docs/architecture.md), [A2API capability contract](docs/a2api.md), [A2WF execution contract](docs/a2wf.md), [PostgreSQL persistence design](docs/persistence.md), and [roadmap](docs/roadmap.md). The PostgreSQL schema is provided in `migrations/0001_asset_registry.sql`; the in-memory registry remains the current runtime adapter until the production database adapter and tenant RLS are implemented.
 
 ## Quick start
 
