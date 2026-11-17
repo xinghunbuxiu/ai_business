@@ -43,12 +43,12 @@ export class ExecutionRuntime {
     const adapter = this.adapters.get(capability.mapping.adapter);
     if (!adapter) return fail("ADAPTER_NOT_CONFIGURED", `Adapter '${capability.mapping.adapter}' is not registered`);
 
-    const context: ExecutionContext = { identity, appId: "runtime", traceId, requestId, idempotencyKey: options.idempotencyKey };
+    const controller = new AbortController();\n    const context: ExecutionContext = { identity, appId: "runtime", traceId, requestId, idempotencyKey: options.idempotencyKey, signal: controller.signal };
     this.emit({ type: "execution.started", traceId, requestId, capability: capabilityId, at: new Date().toISOString() });
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
       const timeout = new Promise<never>((_, reject) => {
-        timer = setTimeout(() => reject(new Error("ADAPTER_TIMEOUT")), capability.mapping.timeoutMs);
+        timer = setTimeout(() => { controller.abort(new Error("ADAPTER_TIMEOUT")); reject(new Error("ADAPTER_TIMEOUT")); }, capability.mapping.timeoutMs);
       });
       const data = await Promise.race([adapter(input, context), timeout]);
       const outputValidator = this.validator(`${stored.hash}:output`, capability.outputSchema);
