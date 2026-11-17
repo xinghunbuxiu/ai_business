@@ -48,7 +48,14 @@ export class ExecutionRuntime {
     }
   }
 
-  async executeInvocation(invocation: A2APIInvocation, identity: ExecutionContext["identity"]): Promise<RuntimeResult> {\n    if (invocation.protocolVersion !== A2API_PROTOCOL_VERSION) {\n      return { protocolVersion: A2API_PROTOCOL_VERSION, success: false, requestId: invocation.requestId, traceId: invocation.traceId, capability: invocation.capabilityId, error: { code: "UNSUPPORTED_PROTOCOL_VERSION", message: "Unsupported A2API protocol version: " + invocation.protocolVersion, retryable: false } };\n    }\n    return this.execute(invocation.capabilityId, invocation.input, identity, { requestId: invocation.requestId, traceId: invocation.traceId, appId: invocation.appId, idempotencyKey: invocation.idempotencyKey, capabilityVersion: invocation.capabilityVersion });\n  }\n\n  private async executeOnce(capabilityId: string, input: unknown, identity: ExecutionContext["identity"], options: { requestId?: string; traceId?: string; idempotencyKey?: string; appId?: string; capabilityVersion?: string } = {}): Promise<RuntimeResult> {
+  async executeInvocation(invocation: A2APIInvocation, identity: ExecutionContext["identity"]): Promise<RuntimeResult> {
+    if (invocation.protocolVersion !== A2API_PROTOCOL_VERSION) {
+      return { protocolVersion: A2API_PROTOCOL_VERSION, success: false, requestId: invocation.requestId, traceId: invocation.traceId, capability: invocation.capabilityId, error: { code: "UNSUPPORTED_PROTOCOL_VERSION", message: "Unsupported A2API protocol version: " + invocation.protocolVersion, retryable: false } };
+    }
+    return this.execute(invocation.capabilityId, invocation.input, identity, { requestId: invocation.requestId, traceId: invocation.traceId, appId: invocation.appId, idempotencyKey: invocation.idempotencyKey, capabilityVersion: invocation.capabilityVersion });
+  }
+
+  private async executeOnce(capabilityId: string, input: unknown, identity: ExecutionContext["identity"], options: { requestId?: string; traceId?: string; idempotencyKey?: string; appId?: string; capabilityVersion?: string } = {}): Promise<RuntimeResult> {
     const requestId = options.requestId ?? randomUUID();
     const traceId = options.traceId ?? randomUUID();
     const fail = (code: string, message: string, retryable = false, fieldErrors?: Record<string, string[]>): RuntimeResult => ({
