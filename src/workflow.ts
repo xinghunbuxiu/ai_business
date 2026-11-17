@@ -182,11 +182,19 @@ export class WorkflowRunner {
         }
         // Finalization errors are ledger failures, not runtime failures. Do not try
         // to finalize the same attempt again or invoke the action a second time.
-        if (attempt) await this.options.nodeExecutionStore!.finish(
-          attempt, result.success ? "succeeded" : "failed",
-          result.success ? result.data : undefined,
-          result.success ? undefined : result.error.code
-        );
+        if (attempt) {
+          // Retryable provider failures and ambiguous runtime outcomes are not
+          // proof that the external side effect did not happen.
+          const uncertain = !result.success && (
+            result.error.retryable ||
+            ["TIMEOUT", "ADAPTER_ERROR", "OUTPUT_CONTRACT_VIOLATION", "IDEMPOTENCY_PERSISTENCE_FAILED"].includes(result.error.code)
+          );
+          await this.options.nodeExecutionStore!.finish(
+            attempt, result.success ? "succeeded" : uncertain ? "unknown" : "failed",
+            result.success ? result.data : undefined,
+            result.success ? undefined : result.error.code
+          );
+        }
       } finally {
         if (!await heartbeat.stop()) throw new Error("WORKFLOW_LEASE_LOST");
       }
