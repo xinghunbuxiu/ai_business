@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { AssetRegistry, ProviderRegistry, HttpJsonProviderTransport, ProviderTransportError, createProviderAdapter, type A2APICapability } from "../src/index.js";
+import { AssetRegistry, ExecutionRuntime, ProviderRegistry, HttpJsonProviderTransport, createProviderAdapter, type A2APICapability } from "../src/index.js";
 
 const capability: A2APICapability = {
   schemaVersion: "1.0", protocolVersion: "1.0.0", id: "commerce.orders.create", version: "1.0.0",
