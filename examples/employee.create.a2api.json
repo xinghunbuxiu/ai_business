@@ -69,7 +69,7 @@
     "tenantRequired": true
   },
   "preconditions": [
-    "store.active == true"
+    "store.active"
   ],
   "effects": [
     "employee.created"
@@ -82,5 +82,6 @@
   "idempotency": {
     "required": true,
     "keyFrom": "request.idempotencyKey"
-  }
+  },
+  "protocolVersion": "1.0.0"
 }
