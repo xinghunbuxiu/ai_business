@@ -77,5 +77,5 @@ export type BusinessAsset = A2UIComponent | A2APICapability | A2WFWorkflow | App
 export type Identity = { userId: string; tenantId?: string; roles: string[]; permissions?: string[] };
 export type ExecutionContext = { identity: Identity; appId: string; traceId: string; requestId: string; idempotencyKey?: string; signal?: AbortSignal };
 export type RuntimeError = { code: string; message: string; retryable: boolean; fieldErrors?: Record<string, string[]> };
-export type A2APIInvocation<T = unknown> = { protocolVersion: typeof A2API_PROTOCOL_VERSION; capabilityId: string; capabilityVersion: string; requestId: string; traceId: string; appId: string; idempotencyKey: string; input: T };
+export type A2APIInvocation<T = unknown> = { protocolVersion: string; capabilityId: string; capabilityVersion: string; requestId: string; traceId: string; appId: string; idempotencyKey: string; input: T };
 export type RuntimeResult<T = unknown> = { protocolVersion: typeof A2API_PROTOCOL_VERSION; success: true; requestId: string; traceId: string; capability: string; data: T; effects: string[] } | { protocolVersion: typeof A2API_PROTOCOL_VERSION; success: false; requestId: string; traceId: string; capability: string; error: RuntimeError };
