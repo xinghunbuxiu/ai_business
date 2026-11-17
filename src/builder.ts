@@ -2,7 +2,7 @@ import { z } from "zod";
 import type { A2APICapability, A2UIComponent, A2WFWorkflow, AppManifest, BusinessAsset } from "./types.js";
 import { AssetRegistry } from "./registry.js";
 
-const SemVer = z.string().regex(/^\\d+\\.\\d+\\.\\d+(?:-[a-zA-Z0-9.-]+)?$/);
+const SemVer = z.string().regex(/^\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?$/);
 export const AppRequirementSchema = z.object({
   appId: z.string().regex(/^[a-z][a-z0-9_.-]+$/),
   appVersion: SemVer,
