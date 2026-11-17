@@ -18,7 +18,7 @@ const registration = {
   transport:{type:"https-json" as const,bindingRef:"secret://commerce/orders"},
   lease:{issuedAt:now.toISOString(),expiresAt:new Date(now.getTime()+60_000).toISOString()}
 };
-const actor = {projectId:"commerce",subject:"svc-orders",permissions:["provider:register","provider:heartbeat","provider:manage"]};
+const actor = {projectId:"commerce",serviceId:"orders",providerId:"orders-java",subject:"svc-orders",permissions:["provider:register","provider:heartbeat","provider:manage"]};
 function setup() {
   const assets = new AssetRegistry(); assets.register(asset); const published = assets.publish(asset.id,asset.version);
   const input = {...registration,capabilities:[{...registration.capabilities[0],contractHash:published.hash}]};
