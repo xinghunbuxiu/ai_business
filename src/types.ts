@@ -2,6 +2,8 @@ import { z } from "zod";
 
 export const A2API_PROTOCOL_VERSION = "1.0.0" as const;
 export const A2WF_PROTOCOL_VERSION = "1.0.0" as const;
+export const A2UI_PROTOCOL_VERSION = "1.0.0" as const;
+export const APP_MANIFEST_PROTOCOL_VERSION = "1.0.0" as const;
 export const AssetStatus = z.enum(["draft", "validated", "testing", "published", "deprecated"]);
 export type AssetStatus = z.infer<typeof AssetStatus>;
 export const AssetKind = z.enum(["a2ui", "a2api", "a2wf", "app"]);
@@ -25,6 +27,7 @@ export type BaseAsset = z.infer<typeof BaseAssetSchema>;
 
 export const A2UIComponentSchema = BaseAssetSchema.extend({
   kind: z.literal("a2ui"),
+  protocolVersion: z.literal(A2UI_PROTOCOL_VERSION),
   component: z.string().min(1),
   propsSchema: z.record(z.unknown()).default({}),
   events: z.array(z.object({ name: z.string(), action: z.string() })).default([]),
@@ -67,6 +70,7 @@ export type A2WFWorkflow = z.infer<typeof A2WFWorkflowSchema>;
 
 export const AppManifestSchema = BaseAssetSchema.extend({
   kind: z.literal("app"),
+  protocolVersion: z.literal(APP_MANIFEST_PROTOCOL_VERSION),
   entrypoints: z.array(z.object({ id: z.string(), label: z.string(), roles: z.array(z.string()), intent: z.string().optional(), component: z.string().optional(), workflow: z.string().optional() })),
   assets: z.array(z.object({ id: z.string(), version: z.string(), kind: AssetKind })),
   defaultRole: z.string().optional()
