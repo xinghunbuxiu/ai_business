@@ -30,7 +30,7 @@ export const A2UIComponentSchema = BaseAssetSchema.extend({
   protocolVersion: z.literal(A2UI_PROTOCOL_VERSION),
   component: z.enum(["Form", "Table", "Card", "List", "Chart", "OrderSummary", "EmployeeForm"]),
   propsSchema: z.record(z.unknown()).default({}),
-  events: z.array(z.object({ name: z.string().min(1), target: z.object({ kind: z.enum(["a2api", "a2wf"]), id: z.string().min(1), version: z.string().regex(/^\\d+\\.\\d+\\.\\d+(?:-[a-zA-Z0-9.-]+)?$/) }) })).default([]),
+  events: z.array(z.object({ name: z.string().min(1), target: z.object({ kind: z.enum(["a2api", "a2wf"]), id: z.string().min(1), version: z.string().regex(/^\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?$/) }) })).default([]),
   layout: z.record(z.unknown()).optional()
 });
 export type A2UIComponent = z.infer<typeof A2UIComponentSchema>;
@@ -72,7 +72,7 @@ export const AppManifestSchema = BaseAssetSchema.extend({
   kind: z.literal("app"),
   protocolVersion: z.literal(APP_MANIFEST_PROTOCOL_VERSION),
   entrypoints: z.array(z.object({ id: z.string(), label: z.string(), roles: z.array(z.string()), intent: z.string().optional(), component: z.string().optional(), workflow: z.string().optional() })),
-  assets: z.array(z.object({ id: z.string(), version: z.string().regex(/^\\d+\\.\\d+\\.\\d+(?:-[a-zA-Z0-9.-]+)?$/), kind: z.enum(["a2ui", "a2api", "a2wf"]) })).min(1),
+  assets: z.array(z.object({ id: z.string(), version: z.string().regex(/^\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?$/), kind: z.enum(["a2ui", "a2api", "a2wf"]) })).min(1),
   defaultRole: z.string().optional()
 }).superRefine((app, ctx) => {
   for (const [index, entry] of app.entrypoints.entries()) {
