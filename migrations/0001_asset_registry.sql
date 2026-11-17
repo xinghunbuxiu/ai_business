@@ -113,7 +113,10 @@ BEGIN
     RAISE EXCEPTION 'published asset version % is immutable', OLD.asset_id || '@' || OLD.version
       USING ERRCODE = '55000';
   END IF;
-  IF TG_OP = 'DELETE' THEN\n    RETURN OLD;\n  END IF;\n  RETURN NEW;
+  IF TG_OP = 'DELETE' THEN
+    RETURN OLD;
+  END IF;
+  RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
