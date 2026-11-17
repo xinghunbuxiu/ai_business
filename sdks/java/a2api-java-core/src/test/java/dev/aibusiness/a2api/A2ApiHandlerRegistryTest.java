@@ -13,6 +13,9 @@ class A2ApiHandlerRegistryTest {
         public String capabilityId() { return "hr.employee.create"; }
         public String capabilityVersion() { return "1.0.0"; }
         public Class<Input> inputType() { return Input.class; }
+        public java.util.Set<String> requiredRoles() { return java.util.Set.of("hr_admin"); }
+        public java.util.Set<String> requiredPermissions() { return java.util.Set.of("employee:create"); }
+        public boolean tenantRequired() { return true; }
         public Output handle(Input input, A2ApiContext context) {
             assertEquals("tenant-a", context.identity().tenantId());
             return new Output("emp-1");
@@ -27,6 +30,11 @@ class A2ApiHandlerRegistryTest {
         var invocation = new A2ApiInvocation("1.0.0", "hr.employee.create", "1.0.0", "req-1", "trace-1", "hr-app", "idem-1", new ObjectMapper().readTree("{\"name\":\"Alex\"}"));
         var output = registry.invoke(invocation, context);
         assertEquals("emp-1", output.get("employeeId").asText());
+
+        var deniedIdentity = new A2ApiIdentity("user-2", "tenant-a", java.util.Set.of("consumer"), java.util.Set.of());
+        var deniedContext = new A2ApiContext(deniedIdentity, "hr-app", "req-1", "trace-1", "idem-1");
+        var denied = assertThrows(A2ApiException.class, () -> registry.invoke(invocation, deniedContext));
+        assertEquals("FORBIDDEN", denied.code());
 
         var missingVersion = new A2ApiInvocation("1.0.0", "hr.employee.create", "2.0.0", "req-2", "trace-2", "hr-app", "idem-2", new ObjectMapper().readTree("{\"name\":\"Alex\"}"));
         var error = assertThrows(A2ApiException.class, () -> registry.invoke(missingVersion, context));
