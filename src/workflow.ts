@@ -72,15 +72,32 @@ export class WorkflowRunner {
     if (!step) throw new Error("WORKFLOW_STEP_NOT_FOUND");
     if (this.options.repository) {
       if (!caller || !this.options.authorizeResume) throw new Error("WORKFLOW_RESUME_AUTHORIZATION_REQUIRED");
-      if (caller.tenantId !== execution.identity.tenantId) throw new Error("WORKFLOW_TENANT_MISMATCH");
-      if (!await this.options.authorizeResume(structuredClone(execution), step.id, structuredClone(caller))) throw new Error("WORKFLOW_RESUME_FORBIDDEN");
-      await this.claim(execution.id);
-      // Reload after claiming so a stale in-memory snapshot cannot drive a decision.
+      if (!await this.options.repository.claim(execution.id, this.workerId, this.leaseSeconds)) throw new Error("WORKFLOW_ALREADY_CLAIMED");
+      // Always authorize against the latest durable snapshot, never a stale in-memory node.
       const claimed = await this.options.repository.get(execution.id);
-      if (!claimed) throw new Error("WORKFLOW_EXECUTION_NOT_FOUND");
+      if (!claimed) {
+        await this.release(execution.id);
+        throw new Error("WORKFLOW_EXECUTION_NOT_FOUND");
+      }
       execution = claimed;
       this.executions.set(execution.id, execution);
-      if (execution.status !== "awaiting_input" && execution.status !== "awaiting_confirmation") throw new Error("WORKFLOW_NOT_WAITING");
+      if (execution.status !== "awaiting_input" && execution.status !== "awaiting_confirmation") {
+        await this.release(execution.id);
+        throw new Error("WORKFLOW_NOT_WAITING");
+      }
+      const currentStep = workflow.steps.find(item => item.id === execution!.currentStepId);
+      if (!currentStep) {
+        await this.release(execution.id);
+        throw new Error("WORKFLOW_STEP_NOT_FOUND");
+      }
+      if (caller.tenantId !== execution.identity.tenantId) {
+        await this.release(execution.id);
+        throw new Error("WORKFLOW_TENANT_MISMATCH");
+      }
+      if (!await this.options.authorizeResume(structuredClone(execution), currentStep.id, structuredClone(caller))) {
+        await this.release(execution.id);
+        throw new Error("WORKFLOW_RESUME_FORBIDDEN");
+      }
     }
     if (execution.status === "awaiting_confirmation") {
       if (response.confirmed !== true) {
