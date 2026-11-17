@@ -39,6 +39,17 @@ describe("ProviderRegistry", () => {
     expect(providers.list({ capabilityId: capability.id, capabilityVersion: "1.0.0", environment: "prod", now })).toHaveLength(1);
   });
 
+  it("fails closed when the provider binding reference was not provisioned by the server", () => {
+    const { assets, registration, now } = (() => {
+      const assets = new AssetRegistry();
+      assets.register(capability);
+      assets.publish(capability.id, capability.version);
+      return { assets, registration: setup().registration, now: new Date("2026-11-17T00:00:00.000Z") };
+    })();
+    const untrustedRegistry = new ProviderRegistry(assets);
+    expect(() => untrustedRegistry.register(registration, "commerce", now)).toThrow(/PROVIDER_BINDING_FORBIDDEN/);
+  });
+
   it("rejects a provider claiming an unpublished version or a mismatched contract hash", () => {
     const { providers, registration, now } = setup();
     const missing = { ...registration, capabilities: [{ ...registration.capabilities[0], capabilityVersion: "9.9.9" }] };
