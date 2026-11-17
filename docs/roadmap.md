@@ -8,7 +8,7 @@
 - [x] Adapter-based A2API execution, role/permission/tenant checks, named preconditions, idempotency, trace events and error envelopes
 - [x] Employee capability example and runtime tests
 
-## Milestone 2 — Production hardening
+## Protocol baseline — A2API/A2WF 1.0.0\n- [x] Freeze A2API and A2WF protocol identifiers and compatibility policy\n- [x] Require protocolVersion on A2API/A2WF assets\n- [x] Pin A2API/A2UI dependency versions in workflow nodes and resolve exact published versions\n- [x] Define invocation/result envelope and workflow execution lifecycle\n\n## Milestone 2 — Production hardening
 - [x] PostgreSQL asset-registry schema and persistence port (adapter implementation/RLS still pending)
 - [ ] JSON Schema validation for API input/output and dependency resolution
 - [ ] Signed release manifests, review approvals and compatibility checks
