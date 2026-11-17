@@ -62,6 +62,7 @@ export class ExecutionRuntime {
       protocolVersion: A2API_PROTOCOL_VERSION, success: false, requestId, traceId, capability: capabilityId,
       error: { code, message, retryable, ...(fieldErrors ? { fieldErrors } : {}) }
     });
+    if (!options.capabilityVersion) return fail("CAPABILITY_VERSION_REQUIRED", "An exact published capability version is required by A2API Protocol 1.0.0");
     const stored = this.registry.get(capabilityId, options.capabilityVersion);
     if (!stored || stored.asset.kind !== "a2api") return fail("CAPABILITY_NOT_FOUND", "Published capability was not found");
     const capability = stored.asset as A2APICapability;
