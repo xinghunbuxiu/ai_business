@@ -43,7 +43,8 @@ export class ExecutionRuntime {
     const adapter = this.adapters.get(capability.mapping.adapter);
     if (!adapter) return fail("ADAPTER_NOT_CONFIGURED", `Adapter '${capability.mapping.adapter}' is not registered`);
 
-    const controller = new AbortController();\n    const context: ExecutionContext = { identity, appId: "runtime", traceId, requestId, idempotencyKey: options.idempotencyKey, signal: controller.signal };
+    const controller = new AbortController();
+    const context: ExecutionContext = { identity, appId: "runtime", traceId, requestId, idempotencyKey: options.idempotencyKey, signal: controller.signal };
     this.emit({ type: "execution.started", traceId, requestId, capability: capabilityId, at: new Date().toISOString() });
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
