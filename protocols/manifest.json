@@ -33,6 +33,14 @@
       "spec": "docs/app-manifest.md",
       "mediaType": "application/vnd.ai-business.app-manifest+json",
       "schema": "protocols/app-manifest/1.0.0/schema.json"
+    },
+    {
+      "id": "a2api-provider-registration",
+      "version": "1.0.0",
+      "status": "proposed",
+      "spec": "docs/provider-registration.md",
+      "mediaType": "application/vnd.ai-business.a2api-provider-registration+json",
+      "schema": "protocols/provider-registration/1.0.0/schema.json"
     }
   ],
   "compatibility": {
