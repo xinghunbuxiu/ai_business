@@ -39,7 +39,7 @@ describe("ExecutionRuntime", () => {
   it("enforces role and tenant, then executes once for an idempotency key", async () => {
     const r = publishedRegistry(); const runtime = new ExecutionRuntime(r); let calls = 0;
     runtime.registerAdapter("control", async () => ({employeeId:"e1",status:"created",call:++calls}));
-    const identity = {userId:"u1",tenantId:"tenant-a",roles:["merchant_owner"]};
+    const identity = {userId:"u1",tenantId:"tenant-a",roles:["merchant_owner"],permissions:["employee:create"]};
     const first = await runtime.execute("employee.create",{name:"A"},identity,{idempotencyKey:"once"});
     const second = await runtime.execute("employee.create",{name:"A"},identity,{idempotencyKey:"once"});
     expect(first.success).toBe(true); expect(second).toEqual(first); expect(calls).toBe(1);
@@ -66,10 +66,23 @@ describe("ExecutionRuntime", () => {
     runtime.registerAdapter("control", async (_input, context) => new Promise((resolve) => {
       context.signal?.addEventListener("abort", () => { aborted = true; resolve({ employeeId: "late", status: "created" }); }, { once: true });
     }));
-    const result = await runtime.execute("employee.create", { name: "A" }, { userId: "u1", tenantId: "t1", roles: ["merchant_owner"] }, { idempotencyKey: "timeout" });
+    const result = await runtime.execute("employee.create", { name: "A" }, { userId: "u1", tenantId: "t1", roles: ["merchant_owner"], permissions: ["employee:create"] }, { idempotencyKey: "timeout" });
     expect(result.success).toBe(false);
     if (!result.success) expect(result.error.code).toBe("TIMEOUT");
     expect(aborted).toBe(true);
+  });
+
+  it("enforces declared A2API preconditions before invoking the adapter", async () => {
+    const guarded = { ...capability, version: "1.0.3", preconditions: ["employee.active"] };
+    const registry = publishedRegistry(guarded);
+    const runtime = new ExecutionRuntime(registry);
+    let invoked = false;
+    runtime.registerPrecondition("employee.active", async () => false);
+    runtime.registerAdapter("control", async () => { invoked = true; return { employeeId: "e1", status: "created" }; });
+    const result = await runtime.execute("employee.create", { name: "A" }, { userId: "u", tenantId: "t", roles: ["merchant_owner"], permissions: ["employee:create"] }, { idempotencyKey: "precondition" });
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error.code).toBe("PRECONDITION_FAILED");
+    expect(invoked).toBe(false);
   });
 
   it("rejects adapter output that violates the declared output schema", async () => {
