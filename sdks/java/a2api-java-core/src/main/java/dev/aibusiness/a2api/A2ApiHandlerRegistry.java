@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public final class A2ApiHandlerRegistry {
     private final Map<String, A2ApiHandler<?, ?>> handlers = new HashMap<>();
@@ -13,7 +14,10 @@ public final class A2ApiHandlerRegistry {
     public A2ApiHandlerRegistry(List<A2ApiHandler<?, ?>> discoveredHandlers, ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
         for (A2ApiHandler<?, ?> handler : discoveredHandlers) {
-            if (handler.capabilityId() == null || handler.capabilityVersion() == null || handler.inputType() == null) {
+            if (handler.capabilityId() == null || !handler.capabilityId().matches("^[a-z][a-z0-9_.-]+$")
+                || handler.capabilityVersion() == null || !handler.capabilityVersion().matches("^\\d+\\.\\d+\\.\\d+(?:-[A-Za-z0-9.-]+)?$")
+                || handler.inputType() == null || handler.requiredRoles() == null || handler.requiredRoles().isEmpty()
+                || handler.requiredPermissions() == null) {
                 throw new IllegalStateException("A2API_HANDLER_METADATA_INVALID");
             }
             String key = key(handler.capabilityId(), handler.capabilityVersion());
@@ -34,7 +38,21 @@ public final class A2ApiHandlerRegistry {
         if (handler == null) {
             throw new A2ApiException("CAPABILITY_NOT_FOUND", "No Java handler is registered for this exact capability version", false);
         }
+        authorize(handler, context.identity());
         return invokeTyped(handler, invocation.input(), context);
+    }
+
+    private void authorize(A2ApiHandler<?, ?> handler, A2ApiIdentity identity) {
+        if (identity == null) throw new A2ApiException("IDENTITY_UNAVAILABLE", "Trusted caller identity is unavailable", false);
+        if (handler.tenantRequired() && (identity.tenantId() == null || identity.tenantId().isBlank())) {
+            throw new A2ApiException("TENANT_REQUIRED", "A tenant identity is required", false);
+        }
+        if (handler.requiredRoles().stream().noneMatch(identity.roles()::contains)) {
+            throw new A2ApiException("FORBIDDEN", "Caller does not have a permitted role", false);
+        }
+        if (!identity.permissions().containsAll(handler.requiredPermissions())) {
+            throw new A2ApiException("FORBIDDEN", "Caller is missing one or more required permissions", false);
+        }
     }
 
     private <I, O> JsonNode invokeTyped(A2ApiHandler<I, O> handler, JsonNode input, A2ApiContext context) {
