@@ -264,6 +264,27 @@ describe("AppBuilderPlanner", () => {
     expect(plan.matched.every(x => /^[a-f0-9]{64}$/.test(x.hash))).toBe(true);
   });
 
+  it("treats component and workflow entrypoint targets as required dependencies", () => {
+    const planner = new AppBuilderPlanner(new AssetRegistry());
+    const plan = planner.plan({
+      appId: "store.console", appVersion: "1.0.0", name: "Store Console", visibility: "system", roles: ["merchant_owner"],
+      entrypoints: [
+        { id: "products", label: "Products", roles: ["merchant_owner"], componentId: "product.table" },
+        { id: "checkout", label: "Checkout", roles: ["merchant_owner"], workflowIntent: "order.checkout" }
+      ]
+    }, {});
+    expect(plan.gaps.map(g => g.kind + ":" + g.id)).toEqual(["a2ui:product.table", "a2wf:order.checkout"]);
+    expect(plan.readyForManifest).toBe(false);
+  });
+
+  it("rejects entrypoint roles not declared by the app", () => {
+    const planner = new AppBuilderPlanner(new AssetRegistry());
+    expect(() => planner.plan({
+      appId: "role.app", appVersion: "1.0.0", name: "Role App", visibility: "system", roles: ["merchant_owner"],
+      entrypoints: [{ id: "admin", label: "Admin", roles: ["platform_admin"], intent: "admin.home" }]
+    }, {})).toThrow(/entrypoints.0.roles/);
+  });
+
   it("rejects tenant scope mismatches and malformed business requirements", () => {
     const planner = new AppBuilderPlanner(new AssetRegistry());
     expect(() => planner.plan({ appId: "x", appVersion: "latest", name: "X", roles: [], entrypoints: [] }, {})).toThrow(/APP_REQUIREMENT_INVALID/);
