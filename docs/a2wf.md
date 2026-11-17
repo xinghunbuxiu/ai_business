@@ -59,7 +59,9 @@ The runner emits lifecycle and node events with execution ID, workflow ID, node 
 
 - A2API action idempotency key is derived from execution ID + node ID; the A2API capability version is passed explicitly.
 - Published dependencies are resolved by exact ID/version; missing dependencies fail before execution.
-- The current implementation is in-memory and is not crash durable. It does not yet guarantee restart recovery, distributed single execution, parallel joins, retry/backoff, timers, compensation/saga, cancellation, or durable audit. These are not implied by protocol v1.0.0 and must not be claimed as supported.
+- The default runner remains in-memory. An optional PostgreSQL execution repository now persists execution snapshots and uses optimistic revisions to reject stale snapshot updates. Configure `WorkflowRunnerOptions.repository` with `PostgresWorkflowExecutionRepository` to enable snapshot persistence; apply `WORKFLOW_POSTGRES_MIGRATION` first. The runner saves state at start, wait points, node transitions and terminal outcomes, and can reload a waiting execution for resume.
+
+Snapshot persistence is not a distributed execution lock. Concurrent workers can still race before a node's side effect; the repository alone does not guarantee distributed single execution or exactly-once actions. Parallel joins, retry/backoff, timers, compensation/saga, cancellation, and durable workflow event/audit history remain unsupported. These guarantees must not be inferred from protocol v1.0.0.
 - Production resume endpoints, approval records and execution persistence must be implemented before exposing workflows to untrusted clients.
 
 ## 7. Compatibility
