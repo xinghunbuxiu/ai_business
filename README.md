@@ -17,7 +17,7 @@ An asset-driven runtime for building and operating AI-native business applicatio
 
 ## Architecture and persistence
 
-See [architecture](docs/architecture.md), [A2API capability contract](docs/a2api.md), [A2WF execution contract](docs/a2wf.md), [PostgreSQL persistence design](docs/persistence.md), and [roadmap](docs/roadmap.md). The PostgreSQL schema is provided in `migrations/0001_asset_registry.sql`; the in-memory registry remains the current runtime adapter until the production database adapter and tenant RLS are implemented.
+See [architecture](docs/architecture.md), [A2API Protocol 1.0.0](docs/a2api.md) ([JSON Schema](protocols/a2api/1.0.0/schema.json)), [A2WF Protocol 1.0.0](docs/a2wf.md) ([JSON Schema](protocols/a2wf/1.0.0/schema.json)), [protocol manifest](protocols/manifest.json), [PostgreSQL persistence design](docs/persistence.md), and [roadmap](docs/roadmap.md). The PostgreSQL schema is provided in `migrations/0001_asset_registry.sql`; the in-memory registry remains the current runtime adapter until the production database adapter and tenant RLS are implemented.
 
 ## Quick start
 
@@ -46,12 +46,16 @@ runtime.registerAdapter("control-bridge", async (input, context) => {
   return controlBridge.invoke("employee.create", input, context);
 });
 
-const result = await runtime.execute(
-  "employee.create",
-  { name: "Alex", phone: "..." },
-  verifiedIdentity,
-  { idempotencyKey: "request-unique-key" }
-);
+const result = await runtime.executeInvocation({
+  protocolVersion: "1.0.0",
+  capabilityId: "employee.create",
+  capabilityVersion: "1.0.0",
+  requestId: crypto.randomUUID(),
+  traceId: crypto.randomUUID(),
+  appId: "merchant-console",
+  idempotencyKey: "request-unique-key",
+  input: { name: "Alex", phone: "..." }
+}, verifiedIdentity);
 ```
 
 The caller must construct `verifiedIdentity` from a trusted server-side session. Never trust client-supplied roles or tenant IDs.
