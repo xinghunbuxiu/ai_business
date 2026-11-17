@@ -79,7 +79,9 @@ export class WorkflowRunner {
         execution.updatedAt = new Date().toISOString(); this.emit("workflow.waiting", execution, step.id, { type: step.type });
         return { execution: structuredClone(execution), waiting: { type: step.type === "approval" ? "confirmation" : "input", stepId: step.id, component: step.component, props: this.resolveBindings(step.input, execution) as Record<string, unknown> } };
       }
-      if (step.requiresConfirmation && execution.outputs[step.id]?.confirmed !== true) {
+      const priorOutput = execution.outputs[step.id];
+      const isConfirmed = !!priorOutput && typeof priorOutput === "object" && (priorOutput as Record<string, unknown>).confirmed === true;
+      if (step.requiresConfirmation && !isConfirmed) {
         execution.status = "awaiting_confirmation"; execution.updatedAt = new Date().toISOString();
         this.emit("workflow.waiting", execution, step.id, { type: "confirmation" });
         return { execution: structuredClone(execution), waiting: { type: "confirmation", stepId: step.id, props: this.resolveBindings(step.input, execution) as Record<string, unknown> } };
