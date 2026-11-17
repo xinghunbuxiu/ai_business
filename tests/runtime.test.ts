@@ -17,8 +17,10 @@ describe("AssetRegistry", () => {
     r.register(next);
     expect(() => r.register(next)).toThrow(/ASSET_IMMUTABLE/);
   });
-  it("accepts semantic versions and only resolves published assets", () => {\n    expect(() => r.register({ ...capability, version: "2.4.1" })).not.toThrow();
-    const r = new AssetRegistry(); r.register(capability);
+  it("accepts semantic versions and only resolves published assets", () => {
+    const r = new AssetRegistry();
+    expect(() => r.register({ ...capability, version: "2.4.1" })).not.toThrow();
+    r.register(capability);
     expect(r.get(capability.id)).toBeUndefined();
     r.publish(capability.id,capability.version);
     expect(r.get(capability.id)?.asset.status).toBe("published");
@@ -57,7 +59,20 @@ describe("ExecutionRuntime", () => {
     expect(valid.success).toBe(true);
   });
 
-  it("passes an abort signal to adapters when execution times out", async () => {\n    const slow = { ...capability, version: "1.0.2", mapping: { ...capability.mapping, timeoutMs: 10 } };\n    const runtime = new ExecutionRuntime(publishedRegistry(slow));\n    let aborted = false;\n    runtime.registerAdapter("control", async (_input, context) => new Promise((resolve) => {\n      context.signal?.addEventListener("abort", () => { aborted = true; resolve({ employeeId: "late", status: "created" }); }, { once: true });\n    }));\n    const result = await runtime.execute("employee.create", { name: "A" }, { userId: "u1", tenantId: "t1", roles: ["merchant_owner"] }, { idempotencyKey: "timeout" });\n    expect(result.success).toBe(false);\n    if (!result.success) expect(result.error.code).toBe("TIMEOUT");\n    expect(aborted).toBe(true);\n  });\n\n  it("rejects adapter output that violates the declared output schema", async () => {
+  it("passes an abort signal to adapters when execution times out", async () => {
+    const slow = { ...capability, version: "1.0.2", mapping: { ...capability.mapping, timeoutMs: 10 } };
+    const runtime = new ExecutionRuntime(publishedRegistry(slow));
+    let aborted = false;
+    runtime.registerAdapter("control", async (_input, context) => new Promise((resolve) => {
+      context.signal?.addEventListener("abort", () => { aborted = true; resolve({ employeeId: "late", status: "created" }); }, { once: true });
+    }));
+    const result = await runtime.execute("employee.create", { name: "A" }, { userId: "u1", tenantId: "t1", roles: ["merchant_owner"] }, { idempotencyKey: "timeout" });
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error.code).toBe("TIMEOUT");
+    expect(aborted).toBe(true);
+  });
+
+  it("rejects adapter output that violates the declared output schema", async () => {
     const runtime = new ExecutionRuntime(publishedRegistry());
     runtime.registerAdapter("control", async () => ({unexpected:true}));
     const result = await runtime.execute("employee.create",{name:"A"},{userId:"u1",tenantId:"t1",roles:["merchant_owner"]},{idempotencyKey:"output"});
