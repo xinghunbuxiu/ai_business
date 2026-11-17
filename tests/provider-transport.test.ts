@@ -15,7 +15,7 @@ function fixture() {
   const assets = new AssetRegistry();
   assets.register(capability);
   const published = assets.publish(capability.id, capability.version);
-  const registry = new ProviderRegistry(assets);
+  const registry = new ProviderRegistry(assets, bindingRef => bindingRef === "secret://commerce/orders");
   const now = new Date("2026-11-17T00:00:00.000Z");
   registry.register({
     registrationProtocolVersion: "1.0.0", projectId: "commerce", serviceId: "orders", providerId: "orders-java",
@@ -104,7 +104,7 @@ describe("HttpJsonProviderTransport", () => {
   });
 
   it("does not silently route when no provider is registered", async () => {
-    const empty = new ProviderRegistry(new AssetRegistry());
+    const empty = new ProviderRegistry(new AssetRegistry(), () => false);
     const transport = new HttpJsonProviderTransport({ resolve: async () => ({ endpointUrl: "https://x", headers: {} }) });
     const adapter = createProviderAdapter({ capabilityId: "commerce.orders.create", capabilityVersion: "1.0.0", environment: "prod", registry: empty, transport });
     await expect(adapter({}, context)).rejects.toMatchObject({ code: "PROVIDER_NOT_FOUND" });
