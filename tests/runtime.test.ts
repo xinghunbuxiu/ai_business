@@ -80,3 +80,43 @@ describe("ExecutionRuntime", () => {
     if (!result.success) expect(result.error.code).toBe("OUTPUT_CONTRACT_VIOLATION");
   });
 });
+
+
+describe("WorkflowRunner", () => {
+  it("waits for a form and confirmation, executes A2API and takes a condition branch", async () => {
+    const { WorkflowRunner } = await import("../src/index.js");
+    const r = new AssetRegistry(); r.register(capability); r.publish(capability.id, capability.version);
+    const wf = {
+      schemaVersion: "1.0", id: "merchant.onboarding.test", version: "1.0.0", kind: "a2wf" as const, name: "Onboarding",
+      status: "draft" as const, visibility: "system" as const, permissions: [], dependencies: [],
+      trigger: { intents: ["merchant.onboard"], roles: ["merchant_owner"] },
+      steps: [
+        { id: "details", type: "form" as const, component: "merchant.form", input: {} },
+        { id: "create", type: "action" as const, capability: "employee.create", input: { name: { $ref: "outputs.details.name" } }, requiresConfirmation: true },
+        { id: "check", type: "condition" as const, condition: { path: "outputs.create.status", operator: "eq" as const, value: "created" }, onTrue: "done", onFalse: "failed" },
+        { id: "done", type: "end" as const }, { id: "failed", type: "end" as const }
+      ],
+      testEvidence: { suite: "unit", passed: 1, failed: 0 }
+    };
+    r.register(wf); r.publish(wf.id, wf.version);
+    const runtime = new ExecutionRuntime(r);
+    runtime.registerAdapter("control", async input => ({ employeeId: "e1", status: "created", name: (input as {name:string}).name }));
+    const runner = new WorkflowRunner(r, runtime);
+    const identity = { userId: "u1", tenantId: "t1", roles: ["merchant_owner"] };
+    const first = await runner.start(wf.id, {}, identity);
+    expect(first.execution.status).toBe("awaiting_input");
+    const second = await runner.resume(first.execution.id, { name: "Alex" });
+    expect(second.execution.status).toBe("awaiting_confirmation");
+    const third = await runner.resume(first.execution.id, { confirmed: true });
+    expect(third.execution.status).toBe("completed");
+    expect(third.execution.outputs.create).toMatchObject({ employeeId: "e1", name: "Alex" });
+  });
+  it("enforces workflow trigger roles", async () => {
+    const { WorkflowRunner } = await import("../src/index.js");
+    const r = new AssetRegistry();
+    const wf = { schemaVersion:"1.0", id:"restricted.workflow", version:"1.0.0", kind:"a2wf" as const, name:"Restricted", status:"draft" as const, visibility:"system" as const, permissions:[], dependencies:[], trigger:{intents:["restricted"],roles:["platform_admin"]}, steps:[{id:"end",type:"end" as const}], testEvidence:{suite:"unit",passed:1,failed:0} };
+    r.register(wf); r.publish(wf.id,wf.version);
+    const runner = new WorkflowRunner(r,new ExecutionRuntime(r));
+    await expect(runner.start(wf.id,{}, {userId:"u",roles:["consumer"]})).rejects.toThrow(/WORKFLOW_FORBIDDEN/);
+  });
+});
