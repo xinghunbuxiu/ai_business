@@ -1,0 +1,39 @@
+{
+  "schemaVersion": "1.0",
+  "id": "merchant.console",
+  "version": "1.0.0",
+  "kind": "app",
+  "name": "Merchant Console",
+  "status": "draft",
+  "visibility": "system",
+  "permissions": [
+    "employee:read",
+    "employee:create"
+  ],
+  "dependencies": [],
+  "entrypoints": [
+    {
+      "id": "employees",
+      "label": "员工管理",
+      "roles": [
+        "merchant_owner",
+        "store_manager"
+      ],
+      "intent": "employee.manage",
+      "component": "employee.list"
+    }
+  ],
+  "assets": [
+    {
+      "id": "employee.create.form",
+      "version": "1.0.0",
+      "kind": "a2ui"
+    },
+    {
+      "id": "employee.create",
+      "version": "1.0.0",
+      "kind": "a2api"
+    }
+  ],
+  "defaultRole": "merchant_owner"
+}
