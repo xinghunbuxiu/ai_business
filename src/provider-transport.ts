@@ -97,9 +97,9 @@ export class HttpJsonProviderTransport {
         method: "POST",
         redirect: "error",
         headers: {
+          ...binding.headers,
           "content-type": "application/json",
-          "accept": "application/json",
-          ...binding.headers
+          "accept": "application/json"
         },
         body: JSON.stringify(invocation),
         signal
