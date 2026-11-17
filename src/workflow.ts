@@ -3,6 +3,7 @@ import type { A2WFWorkflow, Identity } from "./types.js";
 import { AssetRegistry } from "./registry.js";
 import { ExecutionRuntime } from "./runtime.js";
 import type { WorkflowExecutionRepository } from "./workflow-repository.js";
+import type { WorkflowNodeExecutionStore } from "./workflow-node-execution.js";
 
 export type WorkflowStatus = "running" | "awaiting_input" | "awaiting_confirmation" | "completed" | "failed";
 export type WorkflowExecution = {
@@ -20,6 +21,7 @@ export type WorkflowRunnerOptions = {
   leaseSeconds?: number;
   /** Host callback must compare the authenticated caller with tenant, execution and node policy. Required for durable resume. */
   authorizeResume?: (execution: WorkflowExecution, stepId: string, caller: Identity) => Promise<boolean> | boolean;
+  nodeExecutionStore?: WorkflowNodeExecutionStore;
 };
 
 export class WorkflowRunner {
@@ -153,13 +155,17 @@ export class WorkflowRunner {
       }
       const input = this.resolveBindings(step.input, execution) as Record<string, unknown>;
       const heartbeat = this.startLeaseHeartbeat(execution.id);
-      const result = await (async () => {
-        try {
-          return await this.runtime.execute(step.capability!, input, execution.identity, { idempotencyKey: execution.id + ":" + step.id, appId: execution.appId, capabilityVersion: step.capabilityVersion });
-        } finally {
-          if (!await heartbeat.stop()) throw new Error("WORKFLOW_LEASE_LOST");
-        }
-      })();
+      const attempt = await this.options.nodeExecutionStore?.start(execution, step.id, input);
+      let result: Awaited<ReturnType<ExecutionRuntime["execute"]>>;
+      try {
+        result = await this.runtime.execute(step.capability!, input, execution.identity, { idempotencyKey: execution.id + ":" + step.id, appId: execution.appId, capabilityVersion: step.capabilityVersion });
+        if (attempt) await this.options.nodeExecutionStore!.finish(attempt, result.success ? "succeeded" : "failed", result.success ? result.data : undefined, result.success ? undefined : result.error.code);
+      } catch (error) {
+        if (attempt) await this.options.nodeExecutionStore!.finish(attempt, "unknown", undefined, error instanceof Error ? error.name : "UNKNOWN_ERROR");
+        throw error;
+      } finally {
+        if (!await heartbeat.stop()) throw new Error("WORKFLOW_LEASE_LOST");
+      }
       if (!result.success) {
         execution.history.push({ stepId: step.id, status: "failed", error: result.error });
         return this.fail(execution, result.error.code);
