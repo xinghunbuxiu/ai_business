@@ -149,7 +149,7 @@ describe("WorkflowRunner", () => {
   it("waits for a form and confirmation, executes A2API and takes a condition branch", async () => {
     const { WorkflowRunner } = await import("../src/index.js");
     const r = new AssetRegistry(); r.register(capability); r.publish(capability.id, capability.version);
-    const form = { schemaVersion: "1.0", id: "merchant.form", version: "1.0.0", kind: "a2ui" as const, name: "Merchant form", status: "draft" as const, visibility: "system" as const, permissions: [], dependencies: [], component: "Form", propsSchema: {}, events: [], testEvidence: { suite: "unit", passed: 1, failed: 0 } };
+    const form = { schemaVersion: "1.0", protocolVersion: "1.0.0", id: "merchant.form", version: "1.0.0", kind: "a2ui" as const, name: "Merchant form", status: "draft" as const, visibility: "system" as const, permissions: [], dependencies: [], component: "Form", propsSchema: {}, events: [], testEvidence: { suite: "unit", passed: 1, failed: 0 } };
     r.register(form); r.publish(form.id, form.version);
     const wf = {
       schemaVersion: "1.0", protocolVersion: "1.0.0", id: "merchant.onboarding.test", version: "1.0.0", kind: "a2wf" as const, name: "Onboarding",
