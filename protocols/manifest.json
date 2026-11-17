@@ -17,12 +17,29 @@
       "spec": "docs/a2wf.md",
       "mediaType": "application/vnd.ai-business.a2wf+json",
       "schema": "protocols/a2wf/1.0.0/schema.json"
+    },
+    {
+      "id": "a2ui",
+      "version": "1.0.0",
+      "status": "frozen",
+      "spec": "docs/a2ui.md",
+      "mediaType": "application/vnd.ai-business.a2ui+json",
+      "schema": "protocols/a2ui/1.0.0/schema.json"
+    },
+    {
+      "id": "app-manifest",
+      "version": "1.0.0",
+      "status": "frozen",
+      "spec": "docs/app-manifest.md",
+      "mediaType": "application/vnd.ai-business.app-manifest+json",
+      "schema": "protocols/app-manifest/1.0.0/schema.json"
     }
   ],
   "compatibility": {
     "assetVersioning": "semver",
     "protocolVersioning": "semver",
     "publishedAssetsImmutable": true,
-    "workflowDependenciesMustBePinned": true
+    "workflowDependenciesMustBePinned": true,
+    "appDependenciesMustBePinned": true
   }
 }
