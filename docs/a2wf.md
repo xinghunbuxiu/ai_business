@@ -73,3 +73,11 @@ Parallel joins, configurable retry/backoff, timers, compensation/saga, cancellat
 ## 7. Compatibility
 
 A protocol major changes only for breaking graph/execution semantics. Adding an optional node field or optional node type with defined fallback can be a minor release, but a runtime that does not support that node type MUST reject the workflow rather than silently skip it. Published workflow asset versions are immutable.
+
+## Durable node attempt ledger
+
+`PostgresWorkflowNodeExecutionStore` records each action-node attempt independently from the workflow snapshot. Configure it through `WorkflowRunnerOptions.nodeExecutionStore` and apply `WORKFLOW_NODE_ATTEMPTS_POSTGRES_MIGRATION` after the base `WORKFLOW_POSTGRES_MIGRATION`.
+
+Each attempt has its own UUID, workflow/execution/node identity, monotonic per-node attempt number, lifecycle status (`running`, `succeeded`, `failed`, `unknown`), input/output SHA-256 digests, bounded error code, and timestamps. Raw inputs, outputs, credentials and payment data are not copied into this ledger. The runner writes `running` before invoking A2API and finalizes the attempt after the call. A thrown transport/runtime exception is marked `unknown`, because the external side effect may have completed even when its response was lost.
+
+The attempt ledger is evidence and observability, not a retry scheduler. An `unknown` attempt MUST NOT be retried automatically unless the provider's durable idempotency contract can safely replay the same operation. Workflow action idempotency keys remain stable per execution and node. The per-node attempt number currently assumes a single active workflow lease; the unique constraint rejects duplicate sequence allocation if a host violates that ownership model. Deployments should run the migration and ledger store together with the workflow repository.
