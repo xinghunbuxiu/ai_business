@@ -109,4 +109,35 @@ describe("HttpJsonProviderTransport", () => {
     const adapter = createProviderAdapter({ capabilityId: "commerce.orders.create", capabilityVersion: "1.0.0", environment: "prod", registry: empty, transport });
     await expect(adapter({}, context)).rejects.toMatchObject({ code: "PROVIDER_NOT_FOUND" });
   });
+
+  it("preserves provider business error codes through the A2API Runtime", async () => {
+    const assets = new AssetRegistry();
+    assets.register(capability);
+    assets.publish(capability.id, capability.version);
+    const providers = new ProviderRegistry(assets, bindingRef => bindingRef === "secret://commerce/orders");
+    providers.register({
+      registrationProtocolVersion: "1.0.0", projectId: "commerce", serviceId: "orders", providerId: "orders-java",
+      environment: "prod", instanceId: "pod-1",
+      capabilities: [{ capabilityId: capability.id, capabilityVersion: capability.version, contractHash: assets.get(capability.id, capability.version)!.hash }],
+      transport: { type: "https-json", bindingRef: "secret://commerce/orders" },
+      lease: { issuedAt: "2026-11-17T00:00:00.000Z", expiresAt: "2099-11-17T00:05:00.000Z" }
+    }, "commerce", new Date("2026-11-17T00:00:00.000Z"));
+    const transport = new HttpJsonProviderTransport({
+      resolve: async () => ({ endpointUrl: "https://orders.internal/invoke", headers: {} })
+    }, vi.fn(async () => new Response(JSON.stringify({
+      protocolVersion: "1.0.0", requestId: "request-1", traceId: "trace-1", success: false,
+      error: { code: "ORDER_OUT_OF_STOCK", message: "Insufficient stock", retryable: false }
+    }), { status: 200, headers: { "content-type": "application/json" } })) as never);
+    const runtime = new ExecutionRuntime(assets);
+    runtime.registerAdapter("provider", createProviderAdapter({
+      capabilityId: capability.id, capabilityVersion: "1.0.0", environment: "prod", registry: providers, transport
+    }));
+    const result = await runtime.execute(capability.id, { total: 10 }, context.identity, {
+      requestId: context.requestId, traceId: context.traceId, appId: context.appId,
+      idempotencyKey: context.idempotencyKey, capabilityVersion: "1.0.0"
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) expect(result.error.code).toBe("ORDER_OUT_OF_STOCK");
+  });
+
 });
