@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import Ajv, { type ValidateFunction } from "ajv";
 import type { A2APICapability, ExecutionContext, RuntimeResult } from "./types.js";
 import { AssetRegistry } from "./registry.js";
@@ -10,7 +10,8 @@ export type RuntimeEvent = { type: "execution.started" | "execution.succeeded" |
 export class ExecutionRuntime {
   private readonly adapters = new Map<string, Adapter>();
   private readonly preconditions = new Map<string, PreconditionHandler>();
-  private readonly idempotency = new Map<string, RuntimeResult>();
+  private readonly idempotency = new Map<string, { fingerprint: string; result: RuntimeResult }>();
+  private readonly inFlight = new Map<string, { fingerprint: string; promise: Promise<RuntimeResult> }>();
   private readonly validators = new Map<string, ValidateFunction>();
   private readonly ajv = new Ajv({ allErrors: true, strict: false });
   readonly events: RuntimeEvent[] = [];
@@ -28,6 +29,26 @@ export class ExecutionRuntime {
   }
 
   async execute(capabilityId: string, input: unknown, identity: ExecutionContext["identity"], options: { requestId?: string; traceId?: string; idempotencyKey?: string; appId?: string } = {}): Promise<RuntimeResult> {
+    if (!options.idempotencyKey) return this.executeOnce(capabilityId, input, identity, options);
+    const key = `${identity.tenantId ?? "global"}:${capabilityId}:${options.idempotencyKey}`;
+    const fingerprint = createHash("sha256").update(stableStringify(input)).digest("hex");
+    const conflict = (): RuntimeResult => ({ success: false, requestId: options.requestId ?? randomUUID(), traceId: options.traceId ?? randomUUID(), capability: capabilityId, error: { code: "IDEMPOTENCY_CONFLICT", message: "The idempotency key was already used with a different input", retryable: false } });
+    const cached = this.idempotency.get(key);
+    if (cached) return cached.fingerprint === fingerprint ? cached.result : conflict();
+    const pending = this.inFlight.get(key);
+    if (pending) return pending.fingerprint === fingerprint ? pending.promise : conflict();
+    const promise = this.executeOnce(capabilityId, input, identity, options);
+    this.inFlight.set(key, { fingerprint, promise });
+    try {
+      const result = await promise;
+      if (result.success) this.idempotency.set(key, { fingerprint, result });
+      return result;
+    } finally {
+      this.inFlight.delete(key);
+    }
+  }
+
+  private async executeOnce(capabilityId: string, input: unknown, identity: ExecutionContext["identity"], options: { requestId?: string; traceId?: string; idempotencyKey?: string; appId?: string } = {}): Promise<RuntimeResult> {
     const requestId = options.requestId ?? randomUUID();
     const traceId = options.traceId ?? randomUUID();
     const fail = (code: string, message: string, retryable = false, fieldErrors?: Record<string, string[]>): RuntimeResult => ({
@@ -42,9 +63,6 @@ export class ExecutionRuntime {
     if (capability.auth.tenantRequired && !identity.tenantId) return fail("TENANT_REQUIRED", "A tenant identity is required");
     if (capability.visibility !== "system" && capability.tenantId !== identity.tenantId) return fail("TENANT_MISMATCH", "Asset is not available to this tenant");
     if (capability.idempotency.required && !options.idempotencyKey) return fail("IDEMPOTENCY_KEY_REQUIRED", "This operation requires an idempotency key");
-
-    const idemKey = options.idempotencyKey ? `${identity.tenantId ?? "global"}:${capabilityId}:${options.idempotencyKey}` : undefined;
-    if (idemKey && this.idempotency.has(idemKey)) return this.idempotency.get(idemKey)!;
 
     const inputValidator = this.validator(`${stored.hash}:input`, capability.inputSchema);
     if (!inputValidator(input)) return fail("INVALID_INPUT", "Input does not satisfy the published capability schema", false, this.formatErrors(inputValidator));
@@ -76,7 +94,6 @@ export class ExecutionRuntime {
         return fail("OUTPUT_CONTRACT_VIOLATION", message, false, this.formatErrors(outputValidator));
       }
       const result: RuntimeResult = { success: true, requestId, traceId, capability: capabilityId, data, effects: capability.effects };
-      if (idemKey) this.idempotency.set(idemKey, result);
       this.emit({ type: "execution.succeeded", traceId, requestId, capability: capabilityId, at: new Date().toISOString() });
       return result;
     } catch (error) {
@@ -107,4 +124,13 @@ export class ExecutionRuntime {
   }
 
   private emit(event: RuntimeEvent): void { this.events.push(event); this.onEvent?.(event); }
+}
+
+function stableStringify(value: unknown): string {
+  if (Array.isArray(value)) return "[" + value.map(stableStringify).join(",") + "]";
+  if (value && typeof value === "object") {
+    const object = value as Record<string, unknown>;
+    return "{" + Object.keys(object).sort().map(key => JSON.stringify(key) + ":" + stableStringify(object[key])).join(",") + "}";
+  }
+  return JSON.stringify(value) ?? "null";
 }
