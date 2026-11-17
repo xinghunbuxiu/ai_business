@@ -6,7 +6,7 @@ import type { RegisteredProvider } from "../src/provider.js";
 
 const asset = {
   schemaVersion:"1.0",protocolVersion:"1.0.0",id:"orders.create",version:"1.0.0",kind:"a2api" as const,name:"Create order",
-  status:"published" as const,visibility:"system" as const,permissions:[],dependencies:[],
+  status:"draft" as const,visibility:"system" as const,permissions:[],dependencies:[],
   inputSchema:{type:"object"},outputSchema:{type:"object"},errors:[],auth:{roles:["merchant_owner"],tenantRequired:true},
   preconditions:[],effects:[],mapping:{adapter:"provider",operation:"create",timeoutMs:1000},
   idempotency:{required:true,keyFrom:"request.idempotencyKey"},testEvidence:{suite:"test",passed:1,failed:0}
