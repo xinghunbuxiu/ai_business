@@ -68,7 +68,7 @@ export class WorkflowRunner {
     if (execution.status !== "awaiting_input" && execution.status !== "awaiting_confirmation") throw new Error("WORKFLOW_NOT_WAITING");
     const workflow = this.registry.get(execution.workflowId, execution.workflowVersion)?.asset as A2WFWorkflow | undefined;
     if (!workflow) throw new Error("WORKFLOW_VERSION_NOT_FOUND");
-    let step = workflow.steps.find(item => item.id === execution.currentStepId);
+    let step = workflow.steps.find(item => item.id === execution!.currentStepId);
     if (!step) throw new Error("WORKFLOW_STEP_NOT_FOUND");
     if (this.options.repository) {
       if (!caller || !this.options.authorizeResume) throw new Error("WORKFLOW_RESUME_AUTHORIZATION_REQUIRED");
