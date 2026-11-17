@@ -33,6 +33,7 @@ npm run build
 ## Runtime usage
 
 ```ts
+import { randomUUID } from "node:crypto";
 import { AssetRegistry, ExecutionRuntime } from "./src/index.js";
 
 const registry = new AssetRegistry();
