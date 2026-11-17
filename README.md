@@ -21,7 +21,7 @@ An asset-driven runtime for building and operating AI-native business applicatio
 ## Cross-project integration
 
 - [A2API Java adapter design](docs/a2api-java.md) defines Java/Spring provider and consumer mappings.
-- [Cross-project Provider Registration 1.0.0](docs/provider-registration.md) defines project/service/provider identity, namespaced capability IDs, registration lifecycle and routing. This is a proposed companion contract; the four core protocols remain frozen at 1.0.0.
+- [Cross-project Provider Registration 1.0.0](docs/provider-registration.md) defines project/service/provider identity, namespaced capability IDs, registration lifecycle and routing. Its Zod schema and in-memory provider registry are implemented as a first domain-core slice; durable registration storage, authenticated registration endpoints and routing transport remain pending. The four core protocols remain frozen at 1.0.0.
 
 ## Architecture and persistence
 
