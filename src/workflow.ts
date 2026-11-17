@@ -5,7 +5,7 @@ import { ExecutionRuntime } from "./runtime.js";
 
 export type WorkflowStatus = "running" | "awaiting_input" | "awaiting_confirmation" | "completed" | "failed";
 export type WorkflowExecution = {
-  id: string; workflowId: string; workflowVersion: string; appId: string; status: WorkflowStatus; currentStepId?: string;
+  id: string; protocolVersion: "1.0.0"; workflowId: string; workflowVersion: string; appId: string; status: WorkflowStatus; currentStepId?: string;
   triggerInput: Record<string, unknown>; identity: Identity; outputs: Record<string, unknown>;
   history: Array<{ stepId: string; status: string; output?: unknown; error?: unknown }>;
   createdAt: string; updatedAt: string;
@@ -25,7 +25,7 @@ export class WorkflowRunner {
     if (workflow.trigger.roles.length && !workflow.trigger.roles.some(role => identity.roles.includes(role))) throw new Error("WORKFLOW_FORBIDDEN");
     if (workflow.permissions.some(permission => !identity.permissions?.includes(permission))) throw new Error("WORKFLOW_PERMISSION_DENIED");
     if (workflow.visibility !== "system" && workflow.tenantId !== identity.tenantId) throw new Error("WORKFLOW_TENANT_MISMATCH");
-    const execution: WorkflowExecution = { id: randomUUID(), workflowId, workflowVersion: workflow.version, appId: options.appId ?? workflowId, status: "running", currentStepId: workflow.steps[0].id, triggerInput: input, identity, outputs: {}, history: [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+    for (const step of workflow.steps) {\n      if (step.type === "action" && !this.registry.get(step.capability!, step.capabilityVersion)) throw new Error("WORKFLOW_DEPENDENCY_NOT_PUBLISHED: " + step.capability + "@" + step.capabilityVersion);\n      if (step.type === "form" && !this.registry.get(step.component!, step.componentVersion)) throw new Error("WORKFLOW_COMPONENT_NOT_PUBLISHED: " + step.component + "@" + step.componentVersion);\n    }\n    const execution: WorkflowExecution = { id: randomUUID(), protocolVersion: "1.0.0", workflowId, workflowVersion: workflow.version, appId: options.appId ?? workflowId, status: "running", currentStepId: workflow.steps[0].id, triggerInput: input, identity, outputs: {}, history: [], createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
     this.executions.set(execution.id, execution); this.emit("workflow.started", execution);
     return this.advance(execution, workflow);
   }
