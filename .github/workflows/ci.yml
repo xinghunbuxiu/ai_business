@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 jobs:
-  verify:
+  verify-typescript:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -21,3 +21,15 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+
+  verify-java:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+      - name: Verify A2API Java SDK
+        run: mvn -B -f sdks/java/pom.xml test
