@@ -18,6 +18,11 @@ An asset-driven runtime for building and operating AI-native business applicatio
 - Standard result/error envelope, trace events, timeout handling and idempotency-key replay protection.
 - Example employee creation capability, employee form, merchant onboarding workflow and app manifest.
 
+## Cross-project integration
+
+- [A2API Java adapter design](docs/a2api-java.md) defines Java/Spring provider and consumer mappings.
+- [Cross-project Provider Registration 1.0.0](docs/provider-registration.md) defines project/service/provider identity, namespaced capability IDs, registration lifecycle and routing. This is a proposed companion contract; the four core protocols remain frozen at 1.0.0.
+
 ## Architecture and persistence
 
 See [architecture](docs/architecture.md), [A2API Protocol 1.0.0](docs/a2api.md) ([JSON Schema](protocols/a2api/1.0.0/schema.json)), [A2WF Protocol 1.0.0](docs/a2wf.md) ([JSON Schema](protocols/a2wf/1.0.0/schema.json)), [A2UI Protocol 1.0.0](docs/a2ui.md) ([JSON Schema](protocols/a2ui/1.0.0/schema.json)), [App Manifest Protocol 1.0.0](docs/app-manifest.md) ([JSON Schema](protocols/app-manifest/1.0.0/schema.json)), [protocol suite](docs/protocol-suite.md), [protocol manifest](protocols/manifest.json), [PostgreSQL persistence design](docs/persistence.md), and [roadmap](docs/roadmap.md). The PostgreSQL schema is provided in `migrations/0001_asset_registry.sql`; the in-memory registry remains the current runtime adapter until the production database adapter and tenant RLS are implemented.
