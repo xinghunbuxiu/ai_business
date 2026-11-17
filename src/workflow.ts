@@ -89,7 +89,7 @@ export class WorkflowRunner {
         return { execution: structuredClone(execution), waiting: { type: "confirmation", stepId: step.id, props: this.resolveBindings(step.input, execution) as Record<string, unknown> } };
       }
       const input = this.resolveBindings(step.input, execution) as Record<string, unknown>;
-      const result = await this.runtime.execute(step.capability!, input, execution.identity, { idempotencyKey: execution.id + ":" + step.id, appId: execution.appId });
+      const result = await this.runtime.execute(step.capability!, input, execution.identity, { idempotencyKey: execution.id + ":" + step.id, appId: execution.appId, capabilityVersion: step.capabilityVersion });
       if (!result.success) {
         execution.history.push({ stepId: step.id, status: "failed", error: result.error });
         return this.fail(execution, result.error.code);
