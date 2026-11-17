@@ -31,7 +31,7 @@ export class ExecutionRuntime {
   async execute(capabilityId: string, input: unknown, identity: ExecutionContext["identity"], options: { requestId?: string; traceId?: string; idempotencyKey?: string; appId?: string } = {}): Promise<RuntimeResult> {
     if (!options.idempotencyKey) return this.executeOnce(capabilityId, input, identity, options);
     const key = `${identity.tenantId ?? "global"}:${capabilityId}:${options.idempotencyKey}`;
-    const fingerprint = createHash("sha256").update(stableStringify(input)).digest("hex");
+    const fingerprint = createHash("sha256").update(stableStringify({ input, identity: { userId: identity.userId, tenantId: identity.tenantId, roles: identity.roles, permissions: identity.permissions } })).digest("hex");
     const conflict = (): RuntimeResult => ({ success: false, requestId: options.requestId ?? randomUUID(), traceId: options.traceId ?? randomUUID(), capability: capabilityId, error: { code: "IDEMPOTENCY_CONFLICT", message: "The idempotency key was already used with a different input", retryable: false } });
     const cached = this.idempotency.get(key);
     if (cached) return cached.fingerprint === fingerprint ? cached.result : conflict();
