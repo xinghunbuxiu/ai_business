@@ -22,7 +22,7 @@ function fixture() {
     environment: "prod", instanceId: "pod-1",
     capabilities: [{ capabilityId: capability.id, capabilityVersion: capability.version, contractHash: published.hash }],
     transport: { type: "https-json", bindingRef: "secret://commerce/orders" },
-    lease: { issuedAt: "2026-11-17T00:00:00.000Z", expiresAt: "2026-11-17T00:05:00.000Z" }
+    lease: { issuedAt: "2026-11-17T00:00:00.000Z", expiresAt: "2099-11-17T00:05:00.000Z" }
   }, "commerce", now);
   return registry;
 }
