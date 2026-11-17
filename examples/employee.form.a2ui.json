@@ -1,0 +1,39 @@
+{
+  "schemaVersion": "1.0",
+  "id": "employee.create.form",
+  "version": "1.0.0",
+  "kind": "a2ui",
+  "name": "Employee creation form",
+  "status": "draft",
+  "visibility": "system",
+  "permissions": [
+    "employee:create"
+  ],
+  "dependencies": [],
+  "component": "EmployeeForm",
+  "propsSchema": {
+    "type": "object",
+    "required": [
+      "fields",
+      "submitCapability"
+    ],
+    "properties": {
+      "fields": {
+        "type": "array"
+      },
+      "submitCapability": {
+        "type": "string"
+      }
+    }
+  },
+  "events": [
+    {
+      "name": "submit",
+      "action": "employee.create"
+    }
+  ],
+  "layout": {
+    "title": "添加员工",
+    "submitLabel": "确认添加"
+  }
+}
