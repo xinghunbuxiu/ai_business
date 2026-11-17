@@ -87,3 +87,5 @@ The repository persists the immutable registration envelope, provider state and 
 - Heartbeat requires `provider:heartbeat`; drain/revoke require `provider:manage`.
 
 The HTTP framework adapter and concrete authentication mechanism remain host responsibilities. Do not expose repository methods directly to providers. Use a transaction-capable database executor and run schema migrations before enabling the control plane. Production deployments should add rate limits, audit events, secret-manager rotation, database-backed revocation propagation and operational lease-expiry monitoring.
+
+For Runtime routing, use `createRepositoryProviderAdapter` with the same durable repository. It performs asynchronous active-instance discovery by exact capability pin and environment, then invokes the selected provider through the HTTPS transport. The earlier `createProviderAdapter` remains available for the in-memory registry and local tests.
