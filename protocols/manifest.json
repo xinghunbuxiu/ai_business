@@ -1,0 +1,26 @@
+{
+  "protocolSuite": "AI Business Protocols",
+  "release": "1.0.0",
+  "protocols": [
+    {
+      "id": "a2api",
+      "version": "1.0.0",
+      "status": "frozen",
+      "spec": "docs/a2api.md",
+      "mediaType": "application/vnd.ai-business.a2api+json"
+    },
+    {
+      "id": "a2wf",
+      "version": "1.0.0",
+      "status": "frozen",
+      "spec": "docs/a2wf.md",
+      "mediaType": "application/vnd.ai-business.a2wf+json"
+    }
+  ],
+  "compatibility": {
+    "assetVersioning": "semver",
+    "protocolVersioning": "semver",
+    "publishedAssetsImmutable": true,
+    "workflowDependenciesMustBePinned": true
+  }
+}
