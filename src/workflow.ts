@@ -14,10 +14,17 @@ export type WorkflowExecution = {
 export type WorkflowResult = { execution: WorkflowExecution; waiting?: { type: "input" | "confirmation"; stepId: string; component?: string; props?: Record<string, unknown> } };
 export type WorkflowEvent = { type: "workflow.started" | "workflow.step.started" | "workflow.step.completed" | "workflow.waiting" | "workflow.completed" | "workflow.failed"; executionId: string; workflowId: string; stepId?: string; at: string; detail?: unknown };
 
+export type WorkflowRunnerOptions = { repository?: WorkflowExecutionRepository };
+
 export class WorkflowRunner {
   private readonly executions = new Map<string, WorkflowExecution>();
   readonly events: WorkflowEvent[] = [];
-  constructor(private readonly registry: AssetRegistry, private readonly runtime: ExecutionRuntime, private readonly onEvent?: (event: WorkflowEvent) => void) {}
+  constructor(
+    private readonly registry: AssetRegistry,
+    private readonly runtime: ExecutionRuntime,
+    private readonly onEvent?: (event: WorkflowEvent) => void,
+    private readonly options: WorkflowRunnerOptions = {}
+  ) {}
 
   async start(workflowId: string, input: Record<string, unknown>, identity: Identity, options: { appId?: string } = {}): Promise<WorkflowResult> {
     const stored = this.registry.get(workflowId);
