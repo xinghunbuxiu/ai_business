@@ -11,3 +11,4 @@ export * from "./provider-transport.js";
 export * from "./http-server.js";
 export * from "./provider-repository.js";
 export * from "./provider-control-plane.js";
+export * from "./provider-repository-adapter.js";
