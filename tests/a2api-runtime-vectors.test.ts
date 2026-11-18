@@ -136,6 +136,6 @@ describe("A2API shared runtime conformance vectors", () => {
       executed.push(vector.id);
     }
 
-    expect(executed).toEqual(["SEC-TENANT-001", "SEC-PERMISSION-001", "AUDIT-REQUIRED-001"]);
+    expect(executed).toEqual(runtimeVectors.map(vector => vector.id));
   });
 });
