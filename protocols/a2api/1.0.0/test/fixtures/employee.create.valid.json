@@ -1,0 +1,17 @@
+{
+  "protocolVersion": "1.0.0",
+  "id": "employee.create",
+  "version": "1.0.0",
+  "title": "Create employee",
+  "provider": { "id": "hr-service", "runtime": "java", "contractVersion": "1.0.0", "handler": "EmployeeCapabilityProvider.create" },
+  "operation": { "id": "createEmployee", "kind": "command", "http": { "method": "POST", "path": "/v1/employees" } },
+  "input": { "schema": { "type": "object", "required": ["name"], "properties": { "name": { "type": "string", "minLength": 1 } }, "additionalProperties": false } },
+  "output": { "schema": { "type": "object", "required": ["employeeId"], "properties": { "employeeId": { "type": "string" } }, "additionalProperties": false } },
+  "security": { "authentication": { "required": true, "schemes": ["session"] }, "tenant": { "mode": "required", "scope": "organization" }, "permissions": ["employee:create"] },
+  "execution": { "effect": "write", "risk": "medium", "destructive": false, "timeoutMs": 10000, "idempotency": { "mode": "required", "keyScope": "tenant" }, "retry": { "maxAttempts": 1, "backoff": "none", "retryableErrors": [] } },
+  "errors": [
+    { "code": "INVALID_ARGUMENT", "message": "Input is invalid", "retryable": false },
+    { "code": "CONFLICT", "message": "Employee already exists", "retryable": false }
+  ],
+  "audit": { "required": true, "record": ["capabilityId", "capabilityVersion", "principalId", "tenantId", "requestId", "idempotencyKey", "inputDigest", "startedAt", "completedAt", "outcome"] }
+}
