@@ -1,6 +1,6 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
-import Ajv from "ajv";
+import { z } from "zod";
 import { afterAll, describe, expect, it } from "vitest";
 import { AssetRegistry, ExecutionRuntime, type A2APICapability, type Identity } from "../src/index.js";
 import {
@@ -21,8 +21,31 @@ const corpusBytes = readFileSync(new URL("../protocols/a2api/1.0.0/conformance/v
 const corpusSha256 = createHash("sha256").update(corpusBytes).digest("hex");
 const executedRuntimeVectorIds: string[] = [];
 const reportSchema = JSON.parse(readFileSync(new URL("../protocols/a2api/1.0.0/conformance/runtime-report.schema.json", import.meta.url), "utf8"));
-delete reportSchema.$schema;
-const validateRuntimeReport = new Ajv({ strict: false, validateSchema: false }).compile(reportSchema);
+const reportStatuses = reportSchema.properties.vectors.items.properties.status.enum as [string, ...string[]];
+const validateRuntimeReport = z.object({
+  reportVersion: z.literal(reportSchema.properties.reportVersion.const),
+  protocol: z.literal(reportSchema.properties.protocol.const),
+  protocolVersion: z.string().regex(/^\\d+\\.\\d+\\.\\d+$/),
+  runtime: z.string().min(1),
+  adapter: z.string().min(1),
+  adapterCommitSha: z.string().min(1),
+  corpus: z.object({
+    path: z.string().min(1),
+    sha256: z.string().regex(/^[a-f0-9]{64}$/)
+  }).strict(),
+  generatedAt: z.string().datetime(),
+  summary: z.object({
+    total: z.number().int().nonnegative(),
+    passed: z.number().int().nonnegative(),
+    failed: z.number().int().nonnegative(),
+    unsupported: z.number().int().nonnegative(),
+    notExecuted: z.number().int().nonnegative()
+  }).strict(),
+  vectors: z.array(z.object({
+    id: z.string().min(1),
+    status: z.enum(reportStatuses)
+  }).strict())
+}).strict();
 
 afterAll(() => {
   const runtimeVectors = corpus.cases.filter(vector => vector.runner === "runtime-contract");
