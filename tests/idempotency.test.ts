@@ -56,16 +56,18 @@ class FakePostgres implements IdempotencySqlExecutor {
 }
 
 class SharedMemoryStore implements IdempotencyStore {
-  records = new Map<string, { fingerprint: string; result?: RuntimeResult }>();
+  records = new Map<string, { fingerprint: string; state: "in_progress" | "completed" | "unknown"; result?: RuntimeResult }>();
   async reserve(key: string, fingerprint: string): Promise<IdempotencyReservation> {
     const current = this.records.get(key);
-    if (!current) { this.records.set(key, { fingerprint }); return { status: "acquired" }; }
+    if (!current) { this.records.set(key, { fingerprint, state: "in_progress" }); return { status: "acquired" }; }
     if (current.fingerprint !== fingerprint) return { status: "conflict" };
+    if (current.state === "unknown") return { status: "unknown" };
     return current.result ? { status: "completed", result: current.result } : { status: "in_progress" };
   }
   async complete(key: string, fingerprint: string, result: RuntimeResult) {
     const current = this.records.get(key);
     if (!current || current.fingerprint !== fingerprint) throw new Error("reservation missing");
+    current.state = "completed";
     current.result = result;
   }
   async release(key: string, fingerprint: string) {
