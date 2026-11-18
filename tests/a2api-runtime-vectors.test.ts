@@ -14,7 +14,7 @@ const corpus = JSON.parse(readFileSync(
   "utf8"
 )) as { cases: Array<Record<string, any>> };
 
-function contract(permissions: string[], idempotencyRequired = false): CapabilityContract {
+function contract(permissions: string[], idempotencyRequired = false, timeoutMs = 5000): CapabilityContract {
   return {
     protocolVersion: "1.0.0",
     id: "employee.lookup",
@@ -32,7 +32,7 @@ function contract(permissions: string[], idempotencyRequired = false): Capabilit
       effect: "read",
       risk: "low",
       destructive: false,
-      timeoutMs: 5000,
+      timeoutMs,
       idempotency: { mode: idempotencyRequired ? "required" : "unsupported", ...(idempotencyRequired ? { keyScope: "tenant" as const } : {}) },
       retry: { maxAttempts: 1, backoff: "none" }
     },
@@ -41,8 +41,8 @@ function contract(permissions: string[], idempotencyRequired = false): Capabilit
   };
 }
 
-function makeRuntime(permissions: string[], idempotencyStore?: IdempotencyStore, idempotencyRequired = false, adapterBehavior: "success" | "timeout" = "success") {
-  const mapped = mapCapabilityContractToRegistryAsset(contract(permissions, idempotencyRequired), {
+function makeRuntime(permissions: string[], idempotencyStore?: IdempotencyStore, idempotencyRequired = false, adapterBehavior: "success" | "timeout" | "wait-for-abort" = "success", timeoutMs = 5000) {
+  const mapped = mapCapabilityContractToRegistryAsset(contract(permissions, idempotencyRequired, timeoutMs), {
     name: "Shared runtime conformance capability",
     visibility: "system",
     roles: ["merchant_owner"],
@@ -62,12 +62,28 @@ function makeRuntime(permissions: string[], idempotencyStore?: IdempotencyStore,
 
   const runtime = new ExecutionRuntime(registry, undefined, { idempotencyStore });
   let providerDispatchCount = 0;
-  runtime.registerAdapter("shared-conformance", async () => {
+  let abortObserved = false;
+  let lateCompletion = false;
+  runtime.registerAdapter("shared-conformance", async (_input, context) => {
     providerDispatchCount += 1;
     if (adapterBehavior === "timeout") throw new Error("ADAPTER_TIMEOUT");
+    if (adapterBehavior === "wait-for-abort") {
+      return new Promise(resolve => {
+        context.signal?.addEventListener("abort", () => {
+          abortObserved = true;
+          lateCompletion = true;
+          resolve({ employeeId: "late-after-timeout" });
+        }, { once: true });
+      });
+    }
     return { employeeId: "emp-1" };
   });
-  return { runtime, getProviderDispatchCount: () => providerDispatchCount };
+  return {
+    runtime,
+    getProviderDispatchCount: () => providerDispatchCount,
+    getAbortObserved: () => abortObserved,
+    getLateCompletion: () => lateCompletion
+  };
 }
 
 
@@ -113,15 +129,39 @@ class VectorIdempotencyStore implements IdempotencyStore {
 describe("A2API shared runtime conformance vectors", () => {
   it("executes shared security vectors through the registry adapter and runtime", async () => {
     const runtimeVectors = corpus.cases.filter(
-      vector => vector.runner === "runtime-contract" && ["security", "runtime-audit", "idempotency"].includes(vector.area)
+      vector => vector.runner === "runtime-contract" && ["security", "runtime-audit", "execution", "idempotency"].includes(vector.area)
     );
     const executed: string[] = [];
 
     for (const vector of runtimeVectors) {
-      if (!["SEC-TENANT-001", "SEC-PERMISSION-001", "AUDIT-REQUIRED-001", "EXEC-IDEMPOTENCY-001", "EXEC-IDEMPOTENCY-002", "EXEC-IDEMPOTENCY-003"].includes(vector.id)) {
+      if (!["SEC-TENANT-001", "SEC-PERMISSION-001", "AUDIT-REQUIRED-001", "EXEC-TIMEOUT-001", "EXEC-IDEMPOTENCY-001", "EXEC-IDEMPOTENCY-002", "EXEC-IDEMPOTENCY-003"].includes(vector.id)) {
         throw new Error("Unimplemented shared runtime vector: " + vector.id);
       }
 
+
+
+      if (vector.id === "EXEC-TIMEOUT-001") {
+        const { runtime, getProviderDispatchCount, getAbortObserved, getLateCompletion } =
+          makeRuntime([], undefined, false, "wait-for-abort", 25);
+        const identity: Identity = {
+          userId: "user:7", tenantId: "merchant:42", roles: ["merchant_owner"], permissions: []
+        };
+        const runtimeResult = await runtime.execute(
+          "employee.lookup", { mobile: "13800000000" }, identity,
+          { requestId: "req-" + vector.id, traceId: "trace-" + vector.id, capabilityVersion: "1.0.0" }
+        );
+        const wire = adaptRuntimeResultToSassWire(runtimeResult, {
+          invocationId: "123e4567-e89b-12d3-a456-426614174000",
+          capabilityVersion: "1.0.0",
+          identity
+        });
+        expect((wire.result as { error?: { code?: string } }).error?.code, vector.id).toBe(vector.expect.code);
+        expect(getProviderDispatchCount(), vector.id).toBe(vector.expect.providerDispatchCount);
+        expect(getAbortObserved(), vector.id).toBe(true);
+        expect(getLateCompletion(), vector.id).toBe(true);
+        executed.push(vector.id);
+        continue;
+      }
 
       if (vector.area === "idempotency") {
         const store = new VectorIdempotencyStore();
