@@ -103,7 +103,7 @@ describe("A2API shared runtime conformance vectors", () => {
       });
 
       expect(wire.result.ok, vector.id).toBe(false);
-      expect(wire.result.error?.code, vector.id).toBe(vector.expect.code);
+      expect((wire.result as { error?: { code?: string } }).error?.code, vector.id).toBe(vector.expect.code);
       expect(getProviderDispatchCount(), vector.id).toBe(0);
       expect(vector.expect.providerDispatched, vector.id).toBe(false);
       executed.push(vector.id);
