@@ -33,7 +33,7 @@ function contract(permissions: string[], idempotencyRequired = false): Capabilit
       risk: "low",
       destructive: false,
       timeoutMs: 5000,
-      idempotency: { mode: idempotencyRequired ? "required" : "unsupported" },
+      idempotency: { mode: idempotencyRequired ? "required" : "unsupported", ...(idempotencyRequired ? { keyScope: "tenant" as const } : {}) },
       retry: { maxAttempts: 1, backoff: "none" }
     },
     errors: [],
