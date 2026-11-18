@@ -83,3 +83,10 @@ The CI workflow uploads the report as a 30-day artifact named with the tested co
   - Expired COMPLETED is cleaned and the key can be reserved again after retention.
 - The workflow uploaded artifact [`a2api-runtime-conformance-f25b383b7ba60acab5adb91c14eea15ada26065e`](https://github.com/xinghunbuxiu/ai_business/actions/runs/44242582754) (artifact ID `14400636614`, 30-day retention). The report was downloaded and inspected: 7/7 runtime vectors passed, 0 failed, 0 unsupported, 0 not-executed. Corpus SHA-256: `a128c3570671ae78a3c85633c49b66f8361d460c526550e81490d3822a3c2631`.
 - This establishes the ai_business PostgreSQL adapter's tested claim/replay/retention behavior against PostgreSQL 16. It does not prove crash-safe exactly-once external effects or cross-repository interoperability.
+
+
+## Framework report interoperability check
+
+The Framework Java adapter now emits the same portable report schema. Framework CI run [44243057428](https://github.com/xinghunbuxiu/wmjtyd-os-server/actions/runs/44243057428) passed 17 Maven tests and uploaded report artifact `14400726710`. Its report records 6 passed vectors and 1 unsupported vector (`AUDIT-REQUIRED-001`, due to Framework's mandatory audit policy), with 0 failed and 0 not-executed.
+
+The Framework report carries the same corpus SHA-256 as this Node report: `a128c3570671ae78a3c85633c49b66f8361d460c526550e81490d3822a3c2631`. This verifies both reports refer to the same corpus snapshot and validate against the shared report schema. A report aggregator and end-to-end cross-runtime interoperability tests are still outstanding.
