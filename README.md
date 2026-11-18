@@ -6,7 +6,7 @@ An asset-driven runtime for building and operating AI-native business applicatio
 
 ## Protocol baseline
 
-- Frozen suite: [A2API 1.0.0](docs/a2api.md), [A2WF 1.0.0](docs/a2wf.md), [A2UI 1.0.0](docs/a2ui.md), and [App Manifest 1.0.0](docs/app-manifest.md). See the [suite contract](docs/protocol-suite.md) and [protocol manifest](protocols/manifest.json). Protocol versions, asset versions and runtime releases are independent; every release pins exact dependency versions.
+- Canonical suite: [A2 Protocol Suite](https://github.com/xinghunbuxiu/a2-protocol). Frozen 1.0.0 contracts are consumed from the canonical repository; Runtime releases pin exact protocol versions.
 
 ## Implemented kernel
 
@@ -24,12 +24,12 @@ An asset-driven runtime for building and operating AI-native business applicatio
 - [A2API Java adapter design](docs/a2api-java.md) defines Java/Spring provider and consumer mappings.
 - [Cross-project Provider Registration 1.0.0](docs/provider-registration.md) defines project/service/provider identity, namespaced capability IDs, registration lifecycle and routing.
 - TypeScript Runtime now has a fail-closed provider binding registry, HTTPS JSON transport, exact-version adapter factory and response correlation checks. See [provider transport contract](docs/provider-transport.md).
-- Initial [Java 17 SDK](sdks/java/README.md) includes a framework-neutral core, Spring Boot provider endpoint, exact-version handler registry, verified identity resolver contract and typed Runtime client. Durable registration, secret-manager integration, Java JSON Schema validation and production hardening remain pending.
+- Java SDK: [a2-sdk-java](https://github.com/xinghunbuxiu/a2-sdk-java). The Runtime repository does not own SDK source.
 - The four core protocols remain frozen at 1.0.0.
 
 ## Architecture and persistence
 
-See [architecture](docs/architecture.md), [A2API Protocol 1.0.0](docs/a2api.md) ([JSON Schema](protocols/a2api/1.0.0/schema.json)), [A2WF Protocol 1.0.0](docs/a2wf.md) ([JSON Schema](protocols/a2wf/1.0.0/schema.json)), [A2UI Protocol 1.0.0](docs/a2ui.md) ([JSON Schema](protocols/a2ui/1.0.0/schema.json)), [App Manifest Protocol 1.0.0](docs/app-manifest.md) ([JSON Schema](protocols/app-manifest/1.0.0/schema.json)), [protocol suite](docs/protocol-suite.md), [protocol manifest](protocols/manifest.json), [PostgreSQL persistence design](docs/persistence.md), and [roadmap](docs/roadmap.md). The PostgreSQL schema is provided in `migrations/0001_asset_registry.sql`; the in-memory registry remains the current runtime adapter until the production database adapter and tenant RLS are implemented.
+See [architecture](docs/architecture.md), [A2 Protocol Suite](https://github.com/xinghunbuxiu/a2-protocol), [PostgreSQL persistence design](docs/persistence.md), and [roadmap](docs/roadmap.md). Runtime-local protocol schema copies are intentionally removed; conformance consumes the canonical protocol repository. The PostgreSQL schema is provided in `migrations/0001_asset_registry.sql`; the in-memory registry remains the current runtime adapter until the production database adapter and tenant RLS are implemented.
 
 ## Quick start
 
