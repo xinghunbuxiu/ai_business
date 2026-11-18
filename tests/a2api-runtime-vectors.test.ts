@@ -1,5 +1,6 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
+import Ajv2020 from "ajv/dist/2020.js";
 import { afterAll, describe, expect, it } from "vitest";
 import { AssetRegistry, ExecutionRuntime, type A2APICapability, type Identity } from "../src/index.js";
 import {
@@ -19,6 +20,8 @@ const corpus = JSON.parse(readFileSync(
 const corpusBytes = readFileSync(new URL("../protocols/a2api/1.0.0/conformance/vectors.json", import.meta.url));
 const corpusSha256 = createHash("sha256").update(corpusBytes).digest("hex");
 const executedRuntimeVectorIds: string[] = [];
+const reportSchema = JSON.parse(readFileSync(new URL("../protocols/a2api/1.0.0/conformance/runtime-report.schema.json", import.meta.url), "utf8"));
+const validateRuntimeReport = new Ajv2020({ strict: false }).compile(reportSchema);
 
 afterAll(() => {
   const runtimeVectors = corpus.cases.filter(vector => vector.runner === "runtime-contract");
@@ -37,6 +40,8 @@ afterAll(() => {
     summary: {
       total: runtimeVectors.length,
       passed: executedRuntimeVectorIds.length,
+      failed: 0,
+      unsupported: 0,
       notExecuted: runtimeVectors.length - executedRuntimeVectorIds.length
     },
     vectors: runtimeVectors.map(vector => ({
@@ -44,6 +49,9 @@ afterAll(() => {
       status: executedRuntimeVectorIds.includes(vector.id) ? "passed" : "not_executed"
     }))
   };
+  if (!validateRuntimeReport(report)) {
+    throw new Error("A2API runtime conformance report schema validation failed: " + JSON.stringify(validateRuntimeReport.errors));
+  }
   mkdirSync("artifacts", { recursive: true });
   writeFileSync("artifacts/a2api-runtime-conformance.json", JSON.stringify(report, null, 2) + "\n");
 });
