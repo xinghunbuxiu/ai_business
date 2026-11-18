@@ -224,6 +224,7 @@ describe("A2API shared runtime conformance vectors", () => {
           expect((wire.result as { error?: { code?: string } }).error?.code, vector.id).toBe(vector.expect.code);
           expect(first.getProviderDispatchCount() + second.getProviderDispatchCount(), vector.id).toBe(vector.expect.providerDispatchCount);
           executed.push(vector.id);
+        executedRuntimeVectorIds.push(vector.id);
           continue;
         }
 
@@ -256,6 +257,7 @@ describe("A2API shared runtime conformance vectors", () => {
           expect(first.getProviderDispatchCount() + second.getProviderDispatchCount(), vector.id).toBe(vector.expect.providerDispatchCount);
         }
         executed.push(vector.id);
+        executedRuntimeVectorIds.push(vector.id);
         continue;
       }
 
@@ -283,6 +285,7 @@ describe("A2API shared runtime conformance vectors", () => {
         expect((wire.result as { error?: { code?: string } }).error?.code, vector.id).toBe(vector.expect.code);
         expect(getProviderDispatchCount(), vector.id).toBe(1);
         executed.push(vector.id);
+        executedRuntimeVectorIds.push(vector.id);
         continue;
       }
 
@@ -313,6 +316,7 @@ describe("A2API shared runtime conformance vectors", () => {
       expect(getProviderDispatchCount(), vector.id).toBe(0);
       expect(vector.expect.providerDispatched ?? false, vector.id).toBe(false);
       executed.push(vector.id);
+        executedRuntimeVectorIds.push(vector.id);
     }
 
     expect(executed).toEqual(runtimeVectors.map(vector => vector.id));
