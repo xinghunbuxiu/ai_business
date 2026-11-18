@@ -43,7 +43,7 @@ The six-vector runner and PostgreSQL stale-claim regression passed in CI run [44
 - TypeScript build: passed
 - Java SDK verification: passed
 
-A follow-up migration-compatibility update at HEAD `c2aee83c0b1e74f120401cc04e185d6a2f2a0a9c` is awaiting its own CI result.
+Follow-up migration-compatibility update at commit `c2aee83c0b1e74f120401cc04e185d6a2f2a0a9c` also passed CI run [44239960248](https://github.com/xinghunbuxiu/ai_business/actions/runs/44239960248): typecheck, all 84 Vitest tests, build, and Java SDK verification.
 
 ## Deliberate exclusions
 
