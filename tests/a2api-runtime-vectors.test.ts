@@ -1,5 +1,6 @@
-import { readFileSync } from "node:fs";
-import { describe, expect, it } from "vitest";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { afterAll, describe, expect, it } from "vitest";
 import { AssetRegistry, ExecutionRuntime, type A2APICapability, type Identity } from "../src/index.js";
 import {
   mapCapabilityContractToRegistryAsset,
@@ -13,6 +14,39 @@ const corpus = JSON.parse(readFileSync(
   new URL("../protocols/a2api/1.0.0/conformance/vectors.json", import.meta.url),
   "utf8"
 )) as { cases: Array<Record<string, any>> };
+
+
+const corpusBytes = readFileSync(new URL("../protocols/a2api/1.0.0/conformance/vectors.json", import.meta.url));
+const corpusSha256 = createHash("sha256").update(corpusBytes).digest("hex");
+const executedRuntimeVectorIds: string[] = [];
+
+afterAll(() => {
+  const runtimeVectors = corpus.cases.filter(vector => vector.runner === "runtime-contract");
+  const report = {
+    reportVersion: "1.0.0",
+    protocol: "A2API",
+    protocolVersion: "1.0.0",
+    runtime: "ai_business.ExecutionRuntime",
+    adapter: "sass-capability-contract-to-registry-asset + sass-invocation-result-wire",
+    adapterCommitSha: process.env.GITHUB_SHA ?? "local",
+    corpus: {
+      path: "protocols/a2api/1.0.0/conformance/vectors.json",
+      sha256: corpusSha256
+    },
+    generatedAt: new Date().toISOString(),
+    summary: {
+      total: runtimeVectors.length,
+      passed: executedRuntimeVectorIds.length,
+      notExecuted: runtimeVectors.length - executedRuntimeVectorIds.length
+    },
+    vectors: runtimeVectors.map(vector => ({
+      id: vector.id,
+      status: executedRuntimeVectorIds.includes(vector.id) ? "passed" : "not_executed"
+    }))
+  };
+  mkdirSync("artifacts", { recursive: true });
+  writeFileSync("artifacts/a2api-runtime-conformance.json", JSON.stringify(report, null, 2) + "\\n");
+});
 
 function contract(permissions: string[], idempotencyRequired = false, timeoutMs = 5000): CapabilityContract {
   return {
@@ -160,6 +194,7 @@ describe("A2API shared runtime conformance vectors", () => {
         expect(getAbortObserved(), vector.id).toBe(true);
         expect(getLateCompletion(), vector.id).toBe(true);
         executed.push(vector.id);
+        executedRuntimeVectorIds.push(vector.id);
         continue;
       }
 
