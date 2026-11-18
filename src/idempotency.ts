@@ -120,11 +120,17 @@ export const IDEMPOTENCY_POSTGRES_MIGRATION = `
 CREATE TABLE IF NOT EXISTS a2api_idempotency (
   scope_key TEXT PRIMARY KEY,
   fingerprint CHAR(64) NOT NULL,
-  state TEXT NOT NULL CHECK (state IN ('in_progress','completed','unknown')),
+  state TEXT NOT NULL,
   result JSONB,
   expires_at TIMESTAMPTZ NOT NULL,
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  CHECK ((state IN ('in_progress','unknown') AND result IS NULL) OR (state = 'completed' AND result IS NOT NULL))
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+ALTER TABLE a2api_idempotency DROP CONSTRAINT IF EXISTS a2api_idempotency_state_check;
+ALTER TABLE a2api_idempotency ADD CONSTRAINT a2api_idempotency_state_check
+  CHECK (state IN ('in_progress','completed','unknown'));
+ALTER TABLE a2api_idempotency DROP CONSTRAINT IF EXISTS a2api_idempotency_check;
+ALTER TABLE a2api_idempotency DROP CONSTRAINT IF EXISTS a2api_idempotency_result_state_check;
+ALTER TABLE a2api_idempotency ADD CONSTRAINT a2api_idempotency_result_state_check
+  CHECK ((state IN ('in_progress','unknown') AND result IS NULL) OR (state = 'completed' AND result IS NOT NULL));
 CREATE INDEX IF NOT EXISTS idx_a2api_idempotency_expiry ON a2api_idempotency (expires_at);
 `;
