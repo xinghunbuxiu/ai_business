@@ -41,7 +41,7 @@ function contract(permissions: string[], idempotencyRequired = false): Capabilit
   };
 }
 
-function makeRuntime(permissions: string[], idempotencyStore?: IdempotencyStore, idempotencyRequired = false) {
+function makeRuntime(permissions: string[], idempotencyStore?: IdempotencyStore, idempotencyRequired = false, adapterBehavior: "success" | "timeout" = "success") {
   const mapped = mapCapabilityContractToRegistryAsset(contract(permissions, idempotencyRequired), {
     name: "Shared runtime conformance capability",
     visibility: "system",
@@ -64,6 +64,7 @@ function makeRuntime(permissions: string[], idempotencyStore?: IdempotencyStore,
   let providerDispatchCount = 0;
   runtime.registerAdapter("shared-conformance", async () => {
     providerDispatchCount += 1;
+    if (adapterBehavior === "timeout") throw new Error("ADAPTER_TIMEOUT");
     return { employeeId: "emp-1" };
   });
   return { runtime, getProviderDispatchCount: () => providerDispatchCount };
@@ -126,20 +127,27 @@ describe("A2API shared runtime conformance vectors", () => {
         const store = new VectorIdempotencyStore();
         const key = "idem-" + vector.id;
         if (vector.id === "EXEC-IDEMPOTENCY-003") {
-          store.seedUnknown("merchant:42:employee.lookup@1.0.0:" + key, "stale-fingerprint");
-          const { runtime, getProviderDispatchCount } = makeRuntime([], store, true);
-          const result = await runtime.execute(
-            "employee.lookup", { mobile: "13800000000" },
-            { userId: "user:7", tenantId: "merchant:42", roles: ["merchant_owner"], permissions: [] },
-            { requestId: "req-" + vector.id, traceId: "trace-" + vector.id, idempotencyKey: key, capabilityVersion: "1.0.0" }
+          const identity: Identity = { userId: "user:7", tenantId: "merchant:42", roles: ["merchant_owner"], permissions: [] };
+          const first = makeRuntime([], store, true, "timeout");
+          const firstResult = await first.runtime.execute(
+            "employee.lookup", { mobile: "13800000000" }, identity,
+            { requestId: "req-" + vector.id + "-first", traceId: "trace-" + vector.id, idempotencyKey: key, capabilityVersion: "1.0.0" }
+          );
+          expect(firstResult.success, vector.id).toBe(false);
+          if (!firstResult.success) expect(firstResult.error.code).toBe("TIMEOUT");
+
+          const second = makeRuntime([], store, true);
+          const result = await second.runtime.execute(
+            "employee.lookup", { mobile: "13800000000" }, identity,
+            { requestId: "req-" + vector.id + "-retry", traceId: "trace-" + vector.id, idempotencyKey: key, capabilityVersion: "1.0.0" }
           );
           const wire = adaptRuntimeResultToSassWire(result, {
             invocationId: "123e4567-e89b-12d3-a456-426614174000",
             capabilityVersion: "1.0.0",
-            identity: { userId: "user:7", tenantId: "merchant:42", roles: ["merchant_owner"], permissions: [] }
+            identity
           });
           expect((wire.result as { error?: { code?: string } }).error?.code, vector.id).toBe(vector.expect.code);
-          expect(getProviderDispatchCount(), vector.id).toBe(vector.expect.providerDispatchCount);
+          expect(first.getProviderDispatchCount() + second.getProviderDispatchCount(), vector.id).toBe(vector.expect.providerDispatchCount);
           executed.push(vector.id);
           continue;
         }
