@@ -45,7 +45,7 @@ class FakePostgres implements IdempotencySqlExecutor {
       if (sql.includes("expires_at <= $1")) {
         let removed = 0;
         for (const [recordKey, record] of this.records) {
-          if (new Date(record.expires_at) <= new Date(params[0] as Date)) { this.records.delete(recordKey); removed++; }
+          if (record.state === "completed" && new Date(record.expires_at) <= new Date(params[0] as Date)) { this.records.delete(recordKey); removed++; }
         }
         return { rows: [], rowCount: removed };
       }
