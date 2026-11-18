@@ -47,3 +47,18 @@ These are deliberate limitations, not claims that the source semantics are fully
 `tests/a2api-contract-adapter.test.ts` covers the supported mapping and negative cases for risk, authentication scheme bindings, optional tenant mode, required audit, idempotency scope, retry semantics and tenant visibility.
 
 The adapter tests do not yet prove end-to-end Invocation/Result wire compatibility. ai_business still uses its own `requestId/traceId/capabilityId/success/data/effects` runtime envelope. A separate versioned Invocation/Result serializer is required; field renaming inside a controller is not an acceptable substitute.
+
+## Invocation / Result envelope adapter (Draft)
+
+`src/a2api-wire-adapter.ts` adds a second, separate boundary adapter:
+
+- Sass Invocation `invocationId` is retained separately; it is never renamed to `requestId`.
+- Sass `context.requestId` maps to the runtime request ID.
+- Sass `context.correlationId` maps to runtime trace ID. If absent, the host supplies a new trace ID; request ID is never substituted.
+- Principal and tenant values in the incoming body are assertions only. They must match the authenticated host identity; runtime `appId` is injected from trusted host context.
+- The current ai_business runtime cannot enforce a hard end-to-end deadline, so a wire invocation containing `context.deadline` is rejected rather than silently ignored.
+- Runtime `success/data` maps to Sass `ok/output`; known error codes are normalized (for example FORBIDDEN → PERMISSION_DENIED and IDEMPOTENCY_CONFLICT → CONFLICT).
+- Runtime `effects[]` are returned in a sidecar, not silently dropped or injected into the frozen Sass Result schema.
+- If the source capability requires audit, the caller must provide persisted audit evidence. The adapter validates invocation ID, capability ID/version and principal binding before attaching it to the Sass Result.
+
+This is a serialization boundary, not proof that the runtime itself enforces all Sass semantics. In particular, deadline enforcement and capability-level audit-required enforcement remain host responsibilities.
