@@ -7,13 +7,14 @@ import {
 } from "../src/a2api-contract-adapter.js";
 import { adaptRuntimeResultToSassWire } from "../src/a2api-wire-adapter.js";
 import type { RuntimeResult } from "../src/types.js";
+import type { IdempotencyStore, IdempotencyReservation } from "../src/idempotency.js";
 
 const corpus = JSON.parse(readFileSync(
   new URL("../protocols/a2api/1.0.0/conformance/vectors.json", import.meta.url),
   "utf8"
 )) as { cases: Array<Record<string, any>> };
 
-function contract(permissions: string[]): CapabilityContract {
+function contract(permissions: string[], idempotencyRequired = false): CapabilityContract {
   return {
     protocolVersion: "1.0.0",
     id: "employee.lookup",
@@ -32,7 +33,7 @@ function contract(permissions: string[]): CapabilityContract {
       risk: "low",
       destructive: false,
       timeoutMs: 5000,
-      idempotency: { mode: "unsupported" },
+      idempotency: { mode: idempotencyRequired ? "required" : "unsupported" },
       retry: { maxAttempts: 1, backoff: "none" }
     },
     errors: [],
@@ -40,8 +41,8 @@ function contract(permissions: string[]): CapabilityContract {
   };
 }
 
-function makeRuntime(permissions: string[]) {
-  const mapped = mapCapabilityContractToRegistryAsset(contract(permissions), {
+function makeRuntime(permissions: string[], idempotencyStore?: IdempotencyStore, idempotencyRequired = false) {
+  const mapped = mapCapabilityContractToRegistryAsset(contract(permissions, idempotencyRequired), {
     name: "Shared runtime conformance capability",
     visibility: "system",
     roles: ["merchant_owner"],
@@ -59,7 +60,7 @@ function makeRuntime(permissions: string[]) {
   registry.register(asset);
   registry.publish(asset.id, asset.version);
 
-  const runtime = new ExecutionRuntime(registry);
+  const runtime = new ExecutionRuntime(registry, undefined, { idempotencyStore });
   let providerDispatchCount = 0;
   runtime.registerAdapter("shared-conformance", async () => {
     providerDispatchCount += 1;
@@ -68,16 +69,111 @@ function makeRuntime(permissions: string[]) {
   return { runtime, getProviderDispatchCount: () => providerDispatchCount };
 }
 
+
+class VectorIdempotencyStore implements IdempotencyStore {
+  private readonly records = new Map<string, { fingerprint: string; status: "in_progress" | "completed" | "unknown"; result?: RuntimeResult }>();
+
+  async reserve(key: string, fingerprint: string): Promise<IdempotencyReservation> {
+    const current = this.records.get(key);
+    if (!current) {
+      this.records.set(key, { fingerprint, status: "in_progress" });
+      return { status: "acquired" };
+    }
+    if (current.fingerprint !== fingerprint) return { status: "conflict" };
+    if (current.status === "unknown") return { status: "unknown" };
+    if (current.status === "completed" && current.result) return { status: "completed", result: current.result };
+    return { status: "in_progress" };
+  }
+
+  async complete(key: string, fingerprint: string, result: RuntimeResult): Promise<void> {
+    const current = this.records.get(key);
+    if (!current || current.fingerprint !== fingerprint || current.status !== "in_progress") {
+      throw new Error("IDEMPOTENCY_COMPLETION_REJECTED");
+    }
+    current.status = "completed";
+    current.result = result;
+  }
+
+  async release(key: string, fingerprint: string): Promise<void> {
+    const current = this.records.get(key);
+    if (current?.fingerprint === fingerprint && current.status === "in_progress") this.records.delete(key);
+  }
+
+  async markUnknown(key: string, fingerprint: string): Promise<void> {
+    const current = this.records.get(key);
+    if (current?.fingerprint === fingerprint && current.status === "in_progress") current.status = "unknown";
+  }
+
+  seedUnknown(key: string, fingerprint: string): void {
+    this.records.set(key, { fingerprint, status: "unknown" });
+  }
+}
+
 describe("A2API shared runtime conformance vectors", () => {
   it("executes shared security vectors through the registry adapter and runtime", async () => {
     const runtimeVectors = corpus.cases.filter(
-      vector => vector.runner === "runtime-contract" && ["security", "runtime-audit"].includes(vector.area)
+      vector => vector.runner === "runtime-contract" && ["security", "runtime-audit", "idempotency"].includes(vector.area)
     );
     const executed: string[] = [];
 
     for (const vector of runtimeVectors) {
-      if (!["SEC-TENANT-001", "SEC-PERMISSION-001", "AUDIT-REQUIRED-001"].includes(vector.id)) {
+      if (!["SEC-TENANT-001", "SEC-PERMISSION-001", "AUDIT-REQUIRED-001", "EXEC-IDEMPOTENCY-001", "EXEC-IDEMPOTENCY-002", "EXEC-IDEMPOTENCY-003"].includes(vector.id)) {
         throw new Error("Unimplemented shared runtime vector: " + vector.id);
+      }
+
+
+      if (vector.area === "idempotency") {
+        const store = new VectorIdempotencyStore();
+        const key = "idem-" + vector.id;
+        if (vector.id === "EXEC-IDEMPOTENCY-003") {
+          store.seedUnknown("merchant:42:employee.lookup@1.0.0:" + key, "stale-fingerprint");
+          const { runtime, getProviderDispatchCount } = makeRuntime([], store, true);
+          const result = await runtime.execute(
+            "employee.lookup", { mobile: "13800000000" },
+            { userId: "user:7", tenantId: "merchant:42", roles: ["merchant_owner"], permissions: [] },
+            { requestId: "req-" + vector.id, traceId: "trace-" + vector.id, idempotencyKey: key, capabilityVersion: "1.0.0" }
+          );
+          const wire = adaptRuntimeResultToSassWire(result, {
+            invocationId: "123e4567-e89b-12d3-a456-426614174000",
+            capabilityVersion: "1.0.0",
+            identity: { userId: "user:7", tenantId: "merchant:42", roles: ["merchant_owner"], permissions: [] }
+          });
+          expect((wire.result as { error?: { code?: string } }).error?.code, vector.id).toBe(vector.expect.code);
+          expect(getProviderDispatchCount(), vector.id).toBe(vector.expect.providerDispatchCount);
+          executed.push(vector.id);
+          continue;
+        }
+
+        const first = makeRuntime([], store, true);
+        const identity: Identity = { userId: "user:7", tenantId: "merchant:42", roles: ["merchant_owner"], permissions: [] };
+        const firstResult = await first.runtime.execute(
+          "employee.lookup", { mobile: "13800000000" }, identity,
+          { requestId: "req-" + vector.id + "-first", traceId: "trace-" + vector.id, idempotencyKey: key, capabilityVersion: "1.0.0" }
+        );
+        expect(firstResult.success, vector.id).toBe(true);
+
+        const second = makeRuntime([], store, true);
+        const secondInput = vector.id === "EXEC-IDEMPOTENCY-002"
+          ? { mobile: "13900000000" }
+          : { mobile: "13800000000" };
+        const secondResult = await second.runtime.execute(
+          "employee.lookup", secondInput, identity,
+          { requestId: "req-" + vector.id + "-second", traceId: "trace-" + vector.id, idempotencyKey: key, capabilityVersion: "1.0.0" }
+        );
+        if (vector.id === "EXEC-IDEMPOTENCY-001") {
+          expect(secondResult).toEqual(firstResult);
+          expect(first.getProviderDispatchCount() + second.getProviderDispatchCount(), vector.id).toBe(vector.expect.providerDispatchCount);
+        } else {
+          const wire = adaptRuntimeResultToSassWire(secondResult, {
+            invocationId: "123e4567-e89b-12d3-a456-426614174000",
+            capabilityVersion: "1.0.0",
+            identity
+          });
+          expect((wire.result as { error?: { code?: string } }).error?.code, vector.id).toBe(vector.expect.code);
+          expect(first.getProviderDispatchCount() + second.getProviderDispatchCount(), vector.id).toBe(vector.expect.providerDispatchCount);
+        }
+        executed.push(vector.id);
+        continue;
       }
 
       if (vector.id === "AUDIT-REQUIRED-001") {
