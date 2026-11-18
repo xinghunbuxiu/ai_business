@@ -94,6 +94,7 @@ export class ExecutionRuntime {
       return failure("IDEMPOTENCY_STORE_UNAVAILABLE", "Durable idempotency storage is unavailable; the operation was not executed", true);
     }
     if (reservation.status === "conflict") return conflict();
+    if (reservation.status === "unknown") return failure("OUTCOME_UNKNOWN", "The previous execution outcome is unknown; automatic replay is unsafe", false);
     if (reservation.status === "completed") return reservation.result;
     if (reservation.status === "in_progress") {
       return failure("IDEMPOTENCY_IN_PROGRESS", "An operation with this idempotency key is already executing", true);
@@ -107,7 +108,12 @@ export class ExecutionRuntime {
       throw error;
     }
     if (!result.success) {
-      try { await this.idempotencyStore!.release(key, fingerprint); } catch { /* reservation expiry is the recovery path */ }
+      const code = result.error.code;
+      if (code === "TIMEOUT" || code === "ADAPTER_ERROR") {
+        try { await this.idempotencyStore!.markUnknown(key, fingerprint); } catch { /* stale reservation remains non-replayable after expiry */ }
+      } else {
+        try { await this.idempotencyStore!.release(key, fingerprint); } catch { /* reservation expiry is the recovery path */ }
+      }
       return result;
     }
     try {

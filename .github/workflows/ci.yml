@@ -12,6 +12,22 @@ permissions:
 jobs:
   verify-typescript:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: a2api_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d a2api_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      A2API_TEST_DATABASE_URL: postgres://postgres:postgres@localhost:5432/a2api_test
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -21,6 +37,14 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      - name: Upload A2API runtime conformance report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: a2api-runtime-conformance-${{ github.sha }}
+          path: artifacts/a2api-runtime-conformance.json
+          if-no-files-found: warn
+          retention-days: 30
 
   verify-java:
     runs-on: ubuntu-latest

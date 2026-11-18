@@ -1,0 +1,216 @@
+{
+  "protocolVersion": "1.0.0",
+  "description": "Shared A2API conformance corpus. json-schema cases are executed by the protocol package test suite. runtime-contract cases are executable scenario specifications pending adapters in each runtime; they are not counted as passing tests until wired to an implementation.",
+  "cases": [
+    {
+      "id": "CAP-VALID-001",
+      "area": "capability",
+      "runner": "json-schema",
+      "schema": "capability",
+      "fixture": "../test/fixtures/employee.create.valid.json",
+      "mutations": [],
+      "expect": { "valid": true }
+    },
+    {
+      "id": "CAP-RISK-001",
+      "area": "capability",
+      "runner": "json-schema",
+      "schema": "capability",
+      "fixture": "../test/fixtures/employee.create.valid.json",
+      "mutations": [{ "op": "remove", "path": "/execution/risk" }],
+      "expect": { "valid": false, "keyword": "required", "instancePath": "/execution" }
+    },
+    {
+      "id": "CAP-UNKNOWN-001",
+      "area": "capability",
+      "runner": "json-schema",
+      "schema": "capability",
+      "fixture": "../test/fixtures/employee.create.valid.json",
+      "mutations": [{ "op": "add", "path": "/unreviewedExecutionHint", "value": true }],
+      "expect": { "valid": false, "keyword": "additionalProperties" }
+    },
+    {
+      "id": "INV-VALID-001",
+      "area": "invocation",
+      "runner": "json-schema",
+      "schema": "invocation",
+      "input": {
+        "protocolVersion": "1.0.0",
+        "invocationId": "123e4567-e89b-12d3-a456-426614174000",
+        "capability": { "id": "employee.create", "version": "1.0.0" },
+        "context": { "principalId": "user-1", "tenantId": "tenant-1", "requestId": "request-1" },
+        "input": { "name": "Ada" }
+      },
+      "mutations": [],
+      "expect": { "valid": true }
+    },
+    {
+      "id": "INV-IDENTITY-001",
+      "area": "invocation",
+      "runner": "json-schema",
+      "schema": "invocation",
+      "input": {
+        "protocolVersion": "1.0.0",
+        "invocationId": "123e4567-e89b-12d3-a456-426614174000",
+        "capability": { "id": "employee.create", "version": "1.0.0" },
+        "context": { "requestId": "request-1" },
+        "input": { "name": "Ada" }
+      },
+      "mutations": [],
+      "expect": { "valid": false, "keyword": "required", "instancePath": "/context" }
+    },
+    {
+      "id": "INV-UNKNOWN-001",
+      "area": "invocation",
+      "runner": "json-schema",
+      "schema": "invocation",
+      "input": {
+        "protocolVersion": "1.0.0",
+        "invocationId": "123e4567-e89b-12d3-a456-426614174000",
+        "capability": { "id": "employee.create", "version": "1.0.0" },
+        "context": { "principalId": "user-1", "requestId": "request-1" },
+        "input": { "name": "Ada" }
+      },
+      "mutations": [{ "op": "add", "path": "/clientSecret", "value": "must-not-cross-contract" }],
+      "expect": { "valid": false, "keyword": "additionalProperties" }
+    },
+    {
+      "id": "INV-VERSION-001",
+      "area": "invocation",
+      "runner": "json-schema",
+      "schema": "invocation",
+      "input": {
+        "protocolVersion": "1.0.0",
+        "invocationId": "123e4567-e89b-12d3-a456-426614174000",
+        "capability": { "id": "employee.create", "version": "floating" },
+        "context": { "principalId": "user-1", "requestId": "request-1" },
+        "input": { "name": "Ada" }
+      },
+      "mutations": [],
+      "expect": { "valid": false, "keyword": "pattern", "instancePath": "/capability/version" }
+    },
+    {
+      "id": "RES-SUCCESS-001",
+      "area": "result",
+      "runner": "json-schema",
+      "schema": "result",
+      "input": {
+        "protocolVersion": "1.0.0",
+        "invocationId": "123e4567-e89b-12d3-a456-426614174000",
+        "ok": true,
+        "output": { "employeeId": "emp-1" }
+      },
+      "mutations": [],
+      "expect": { "valid": true }
+    },
+    {
+      "id": "RES-FAILURE-001",
+      "area": "result",
+      "runner": "json-schema",
+      "schema": "result",
+      "input": {
+        "protocolVersion": "1.0.0",
+        "invocationId": "123e4567-e89b-12d3-a456-426614174000",
+        "ok": false,
+        "error": { "code": "PERMISSION_DENIED", "message": "Permission denied", "retryable": false }
+      },
+      "mutations": [],
+      "expect": { "valid": true }
+    },
+    {
+      "id": "RES-AMBIGUOUS-001",
+      "area": "result",
+      "runner": "json-schema",
+      "schema": "result",
+      "input": {
+        "protocolVersion": "1.0.0",
+        "invocationId": "123e4567-e89b-12d3-a456-426614174000",
+        "ok": false,
+        "error": { "code": "PERMISSION_DENIED", "message": "Permission denied", "retryable": false }
+      },
+      "mutations": [{ "op": "add", "path": "/output", "value": {} }],
+      "expect": { "valid": false }
+    },
+    {
+      "id": "AUDIT-DIGEST-001",
+      "area": "result",
+      "runner": "json-schema",
+      "schema": "result",
+      "input": {
+        "protocolVersion": "1.0.0",
+        "invocationId": "123e4567-e89b-12d3-a456-426614174000",
+        "ok": false,
+        "error": { "code": "PERMISSION_DENIED", "message": "Permission denied", "retryable": false },
+        "audit": {
+          "auditId": "audit-1",
+          "capability": { "id": "employee.create", "version": "1.0.0" },
+          "invocationId": "123e4567-e89b-12d3-a456-426614174000",
+          "principalId": "user-1",
+          "outcome": "denied",
+          "startedAt": "2026-11-18T00:00:00Z",
+          "completedAt": "2026-11-18T00:00:01Z"
+        }
+      },
+      "mutations": [{ "op": "add", "path": "/audit/inputDigest", "value": "not-a-digest" }],
+      "expect": { "valid": false, "keyword": "pattern", "instancePath": "/audit/inputDigest" }
+    },
+    {
+      "id": "AUDIT-REQUIRED-001",
+      "area": "runtime-audit",
+      "runner": "runtime-contract",
+      "scenario": "capability-audit-required-result-must-contain-persisted-audit-evidence",
+      "expect": { "outcome": "reject", "code": "AUDIT_REQUIRED" },
+      "status": "pending-adapter",
+      "note": "JSON Schema validates audit evidence when present; the conditional requirement based on the referenced capability is a runtime semantic rule."
+    },
+    {
+      "id": "SEC-TENANT-001",
+      "area": "security",
+      "runner": "runtime-contract",
+      "scenario": "capability-tenant-required-invocation-without-trusted-tenant",
+      "expect": { "outcome": "reject", "code": "TENANT_REQUIRED", "providerDispatched": false },
+      "status": "pending-adapter"
+    },
+    {
+      "id": "SEC-PERMISSION-001",
+      "area": "security",
+      "runner": "runtime-contract",
+      "scenario": "required-permission-denied-before-provider-execution",
+      "expect": { "outcome": "reject", "code": "PERMISSION_DENIED", "providerDispatched": false },
+      "status": "pending-adapter"
+    },
+    {
+      "id": "EXEC-TIMEOUT-001",
+      "area": "execution",
+      "runner": "runtime-contract",
+      "scenario": "provider-exceeds-effective-deadline",
+      "expect": { "outcome": "reject", "code": "TIMEOUT", "providerDispatched": true },
+      "status": "pending-adapter",
+      "note": "Abort/cancellation and late provider side effects must be asserted by each runtime adapter."
+    },
+    {
+      "id": "EXEC-IDEMPOTENCY-001",
+      "area": "idempotency",
+      "runner": "runtime-contract",
+      "scenario": "repeat-completed-request-with-same-scoped-key-and-same-canonical-digest",
+      "expect": { "outcome": "same-result", "providerDispatchCount": 1 },
+      "status": "pending-adapter"
+    },
+    {
+      "id": "EXEC-IDEMPOTENCY-002",
+      "area": "idempotency",
+      "runner": "runtime-contract",
+      "scenario": "reuse-scoped-idempotency-key-with-different-canonical-digest",
+      "expect": { "outcome": "reject", "code": "CONFLICT", "providerDispatchCount": 1 },
+      "status": "pending-adapter"
+    },
+    {
+      "id": "EXEC-IDEMPOTENCY-003",
+      "area": "idempotency",
+      "runner": "runtime-contract",
+      "scenario": "stale-in-progress-with-ambiguous-external-outcome",
+      "expect": { "outcome": "reject", "code": "OUTCOME_UNKNOWN", "providerDispatchCount": 1 },
+      "status": "pending-adapter"
+    }
+  ]
+}

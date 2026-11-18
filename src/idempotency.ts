@@ -4,12 +4,14 @@ export type IdempotencyReservation =
   | { status: "acquired" }
   | { status: "in_progress" }
   | { status: "conflict" }
-  | { status: "completed"; result: RuntimeResult };
+  | { status: "completed"; result: RuntimeResult }
+  | { status: "unknown" };
 
 export interface IdempotencyStore {
   reserve(key: string, fingerprint: string, ttlSeconds: number): Promise<IdempotencyReservation>;
   complete(key: string, fingerprint: string, result: RuntimeResult): Promise<void>;
   release(key: string, fingerprint: string): Promise<void>;
+  markUnknown(key: string, fingerprint: string): Promise<void>;
 }
 
 export interface IdempotencySqlExecutor {
@@ -21,7 +23,7 @@ export interface IdempotencySqlExecutor {
 
 type IdempotencyRow = {
   fingerprint: string;
-  state: "in_progress" | "completed";
+  state: "in_progress" | "completed" | "unknown";
   result: RuntimeResult | null;
   expires_at: Date | string;
 };
@@ -61,8 +63,17 @@ export class PostgresIdempotencyStore implements IdempotencyStore {
       );
       return (retry.rowCount ?? 0) === 1 ? { status: "acquired" } : { status: "in_progress" };
     }
+    if (row.fingerprint !== fingerprint) return { status: "conflict" };
+    if (row.state === "unknown") return { status: "unknown" };
     if (new Date(row.expires_at).getTime() <= Date.now()) {
-      await this.db.query("DELETE FROM a2api_idempotency WHERE scope_key=$1 AND expires_at <= NOW()", [key]);
+      if (row.state === "in_progress") {
+        const marked = await this.db.query(
+          "UPDATE a2api_idempotency SET state='unknown', updated_at=NOW() WHERE scope_key=$1 AND fingerprint=$2 AND state='in_progress' AND expires_at <= NOW()",
+          [key, fingerprint]
+        );
+        return (marked.rowCount ?? 0) === 1 ? { status: "unknown" } : { status: "in_progress" };
+      }
+      await this.db.query("DELETE FROM a2api_idempotency WHERE scope_key=$1 AND state='completed' AND expires_at <= NOW()", [key]);
       const retry = await this.db.query(
         `INSERT INTO a2api_idempotency (scope_key, fingerprint, state, result, expires_at, updated_at)
          VALUES ($1,$2,'in_progress',NULL,NOW() + ($3 * INTERVAL '1 second'),NOW())
@@ -71,7 +82,6 @@ export class PostgresIdempotencyStore implements IdempotencyStore {
       );
       return (retry.rowCount ?? 0) === 1 ? { status: "acquired" } : { status: "in_progress" };
     }
-    if (row.fingerprint !== fingerprint) return { status: "conflict" };
     return row.state === "completed" && row.result
       ? { status: "completed", result: row.result }
       : { status: "in_progress" };
@@ -93,8 +103,15 @@ export class PostgresIdempotencyStore implements IdempotencyStore {
     );
   }
 
+  async markUnknown(key: string, fingerprint: string): Promise<void> {
+    await this.db.query(
+      "UPDATE a2api_idempotency SET state='unknown', updated_at=NOW() WHERE scope_key=$1 AND fingerprint=$2 AND state='in_progress'",
+      [key, fingerprint]
+    );
+  }
+
   async deleteExpired(now = new Date()): Promise<number> {
-    const result = await this.db.query("DELETE FROM a2api_idempotency WHERE expires_at <= $1", [now]);
+    const result = await this.db.query("DELETE FROM a2api_idempotency WHERE state='completed' AND expires_at <= $1", [now]);
     return result.rowCount ?? 0;
   }
 }
@@ -103,11 +120,17 @@ export const IDEMPOTENCY_POSTGRES_MIGRATION = `
 CREATE TABLE IF NOT EXISTS a2api_idempotency (
   scope_key TEXT PRIMARY KEY,
   fingerprint CHAR(64) NOT NULL,
-  state TEXT NOT NULL CHECK (state IN ('in_progress','completed')),
+  state TEXT NOT NULL,
   result JSONB,
   expires_at TIMESTAMPTZ NOT NULL,
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  CHECK ((state = 'in_progress' AND result IS NULL) OR (state = 'completed' AND result IS NOT NULL))
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+ALTER TABLE a2api_idempotency DROP CONSTRAINT IF EXISTS a2api_idempotency_state_check;
+ALTER TABLE a2api_idempotency ADD CONSTRAINT a2api_idempotency_state_check
+  CHECK (state IN ('in_progress','completed','unknown'));
+ALTER TABLE a2api_idempotency DROP CONSTRAINT IF EXISTS a2api_idempotency_check;
+ALTER TABLE a2api_idempotency DROP CONSTRAINT IF EXISTS a2api_idempotency_result_state_check;
+ALTER TABLE a2api_idempotency ADD CONSTRAINT a2api_idempotency_result_state_check
+  CHECK ((state IN ('in_progress','unknown') AND result IS NULL) OR (state = 'completed' AND result IS NOT NULL));
 CREATE INDEX IF NOT EXISTS idx_a2api_idempotency_expiry ON a2api_idempotency (expires_at);
 `;

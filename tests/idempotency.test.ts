@@ -9,7 +9,7 @@ import {
 import { AssetRegistry, ExecutionRuntime, type A2APICapability, type RuntimeResult } from "../src/index.js";
 
 class FakePostgres implements IdempotencySqlExecutor {
-  records = new Map<string, { fingerprint: string; state: "in_progress" | "completed"; result: RuntimeResult | null; expires_at: string }>();
+  records = new Map<string, { fingerprint: string; state: "in_progress" | "completed" | "unknown"; result: RuntimeResult | null; expires_at: string }>();
 
   async query<T extends Record<string, unknown>>(sql: string, params: readonly unknown[] = []): Promise<{ rows: T[]; rowCount: number }> {
     const key = String(params[0]);
@@ -28,8 +28,12 @@ class FakePostgres implements IdempotencySqlExecutor {
     if (sql.includes("UPDATE a2api_idempotency")) {
       const row = this.records.get(key);
       if (!row || row.fingerprint !== params[1] || row.state !== "in_progress") return { rows: [], rowCount: 0 };
-      row.state = "completed";
-      row.result = JSON.parse(String(params[2])) as RuntimeResult;
+      if (sql.includes("state='unknown'")) {
+        row.state = "unknown";
+      } else {
+        row.state = "completed";
+        row.result = JSON.parse(String(params[2])) as RuntimeResult;
+      }
       return { rows: [], rowCount: 1 };
     }
     if (sql.includes("DELETE FROM a2api_idempotency")) {
@@ -41,7 +45,7 @@ class FakePostgres implements IdempotencySqlExecutor {
       if (sql.includes("expires_at <= $1")) {
         let removed = 0;
         for (const [recordKey, record] of this.records) {
-          if (new Date(record.expires_at) <= new Date(params[0] as Date)) { this.records.delete(recordKey); removed++; }
+          if (record.state === "completed" && new Date(record.expires_at) <= new Date(params[0] as Date)) { this.records.delete(recordKey); removed++; }
         }
         return { rows: [], rowCount: removed };
       }
@@ -52,20 +56,26 @@ class FakePostgres implements IdempotencySqlExecutor {
 }
 
 class SharedMemoryStore implements IdempotencyStore {
-  records = new Map<string, { fingerprint: string; result?: RuntimeResult }>();
+  records = new Map<string, { fingerprint: string; state: "in_progress" | "completed" | "unknown"; result?: RuntimeResult }>();
   async reserve(key: string, fingerprint: string): Promise<IdempotencyReservation> {
     const current = this.records.get(key);
-    if (!current) { this.records.set(key, { fingerprint }); return { status: "acquired" }; }
+    if (!current) { this.records.set(key, { fingerprint, state: "in_progress" }); return { status: "acquired" }; }
     if (current.fingerprint !== fingerprint) return { status: "conflict" };
+    if (current.state === "unknown") return { status: "unknown" };
     return current.result ? { status: "completed", result: current.result } : { status: "in_progress" };
   }
   async complete(key: string, fingerprint: string, result: RuntimeResult) {
     const current = this.records.get(key);
     if (!current || current.fingerprint !== fingerprint) throw new Error("reservation missing");
+    current.state = "completed";
     current.result = result;
   }
   async release(key: string, fingerprint: string) {
     if (this.records.get(key)?.fingerprint === fingerprint) this.records.delete(key);
+  }
+  async markUnknown(key: string, fingerprint: string) {
+    const current = this.records.get(key);
+    if (current?.fingerprint === fingerprint) current.state = "unknown";
   }
 }
 
@@ -92,6 +102,21 @@ describe("PostgresIdempotencyStore", () => {
     const result: RuntimeResult = { protocolVersion: "1.0.0", success: true, requestId: "r", traceId: "t", capability: "invoice.create", data: { invoiceId: "i-1" }, effects: ["invoice.created"] };
     await store.complete("tenant-a:invoice.create@1.0.0:key-1", "a".repeat(64), result);
     expect(await store.reserve("tenant-a:invoice.create@1.0.0:key-1", "a".repeat(64), 3600)).toEqual({ status: "completed", result });
+  });
+
+
+  it("moves an expired in-progress claim to UNKNOWN instead of reclaiming it", async () => {
+    const db = new FakePostgres();
+    const store = new PostgresIdempotencyStore(db);
+    const key = "tenant-a:invoice.create@1.0.0:stale";
+    const fingerprint = "c".repeat(64);
+    expect(await store.reserve(key, fingerprint, 60)).toEqual({ status: "acquired" });
+    const row = db.records.get(key)!;
+    row.expires_at = new Date(Date.now() - 1000).toISOString();
+    expect(await store.reserve(key, fingerprint, 60)).toEqual({ status: "unknown" });
+    expect(db.records.get(key)?.state).toBe("unknown");
+    expect(await store.reserve(key, fingerprint, 60)).toEqual({ status: "unknown" });
+    expect(await store.deleteExpired(new Date(Date.now() + 60_000))).toBe(0);
   });
 
   it("provides an expiry cleanup migration and validates retention policy", async () => {
