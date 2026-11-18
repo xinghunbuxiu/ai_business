@@ -21,6 +21,14 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      - name: Upload A2API runtime conformance report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: a2api-runtime-conformance-${{ github.sha }}
+          path: artifacts/a2api-runtime-conformance.json
+          if-no-files-found: warn
+          retention-days: 30
 
   verify-java:
     runs-on: ubuntu-latest
