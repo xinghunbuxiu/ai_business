@@ -25,7 +25,7 @@ const reportStatuses = reportSchema.properties.vectors.items.properties.status.e
 const validateRuntimeReport = z.object({
   reportVersion: z.literal(reportSchema.properties.reportVersion.const),
   protocol: z.literal(reportSchema.properties.protocol.const),
-  protocolVersion: z.string().regex(/^\\d+\\.\\d+\\.\\d+$/),
+  protocolVersion: z.string().regex(/^\d+\.\d+\.\d+$/),
   runtime: z.string().min(1),
   adapter: z.string().min(1),
   adapterCommitSha: z.string().min(1),
@@ -73,8 +73,9 @@ afterAll(() => {
       status: executedRuntimeVectorIds.includes(vector.id) ? "passed" : "not_executed"
     }))
   };
-  if (!validateRuntimeReport(report)) {
-    throw new Error("A2API runtime conformance report schema validation failed: " + JSON.stringify(validateRuntimeReport.errors));
+  const validation = validateRuntimeReport.safeParse(report);
+  if (!validation.success) {
+    throw new Error("A2API runtime conformance report schema validation failed: " + validation.error.message);
   }
   mkdirSync("artifacts", { recursive: true });
   writeFileSync("artifacts/a2api-runtime-conformance.json", JSON.stringify(report, null, 2) + "\n");
