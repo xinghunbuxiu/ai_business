@@ -17,3 +17,4 @@ export * from "./provider-http-server.js";
 export * from "./idempotency.js";
 export * from "./audit.js";
 export * from "./workflow-node-execution.js";
+export * from "./a2api-contract-adapter.js";
