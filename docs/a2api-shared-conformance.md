@@ -55,3 +55,18 @@ The shared corpus retains adapter-neutral `pending-adapter` labels. Per-runtime 
 The corpus-driven timeout test uses a deterministic provider adapter that remains pending until the capability timeout aborts its signal, then completes late; the Runtime returns `TIMEOUT` and discards that late completion. This verifies the Runtime's timeout/abort boundary, not remote provider cancellation or rollback of a side effect already committed by an external system.
 
 No end-to-end cross-repository conformance or exactly-once external-effect guarantee is claimed.
+
+
+## Machine-readable runtime conformance reports
+
+The Sass protocol repository defines the portable report contract at `protocols/a2api/1.0.0/conformance/runtime-report.schema.json`. This repository vendors that schema alongside the corpus snapshot and emits `artifacts/a2api-runtime-conformance.json` after the corpus-driven Runtime test.
+
+Each report binds the result to:
+
+- A2API protocol version and exact SHA-256 of the vendored vector corpus.
+- Runtime and adapter identity.
+- The CI commit SHA (`GITHUB_SHA`, or `local` for local execution).
+- Per-vector status (`passed` only after that vector's assertions complete; otherwise `not_executed`).
+- Totals for passed, failed, unsupported and not-executed cases.
+
+The CI workflow uploads the report as a 30-day artifact named with the tested commit SHA, even when a later workflow step fails. A missing report is warned, not silently treated as a pass. This is the first Node-side report producer; Framework/Java report production and a cross-repository aggregator remain follow-up work. The report is an adapter test artifact, not a protocol wire message and not proof of end-to-end interoperability.
