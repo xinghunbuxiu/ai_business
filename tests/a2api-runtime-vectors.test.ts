@@ -70,17 +70,44 @@ function makeRuntime(permissions: string[]) {
 
 describe("A2API shared runtime conformance vectors", () => {
   it("executes shared security vectors through the registry adapter and runtime", async () => {
-    const securityVectors = corpus.cases.filter(
-      vector => vector.runner === "runtime-contract" && vector.area === "security"
+    const runtimeVectors = corpus.cases.filter(
+      vector => vector.runner === "runtime-contract" && ["security", "runtime-audit"].includes(vector.area)
     );
     const executed: string[] = [];
 
-    for (const vector of securityVectors) {
-      const missingTenant = vector.id === "SEC-TENANT-001";
-      if (!missingTenant && vector.id !== "SEC-PERMISSION-001") {
-        throw new Error("Unimplemented shared security vector: " + vector.id);
+    for (const vector of runtimeVectors) {
+      if (!["SEC-TENANT-001", "SEC-PERMISSION-001", "AUDIT-REQUIRED-001"].includes(vector.id)) {
+        throw new Error("Unimplemented shared runtime vector: " + vector.id);
       }
 
+      if (vector.id === "AUDIT-REQUIRED-001") {
+        const { runtime, getProviderDispatchCount } = makeRuntime([]);
+        const identity: Identity = {
+          userId: "user:7",
+          tenantId: "merchant:42",
+          roles: ["merchant_owner"],
+          permissions: []
+        };
+        const runtimeResult: RuntimeResult = await runtime.execute(
+          "employee.lookup",
+          { mobile: "13800000000" },
+          identity,
+          { requestId: "req-" + vector.id, traceId: "trace-" + vector.id, capabilityVersion: "1.0.0" }
+        );
+        const wire = adaptRuntimeResultToSassWire(runtimeResult, {
+          invocationId: "123e4567-e89b-12d3-a456-426614174000",
+          capabilityVersion: "1.0.0",
+          identity,
+          auditRequired: true
+        });
+        expect(wire.result.ok, vector.id).toBe(false);
+        expect((wire.result as { error?: { code?: string } }).error?.code, vector.id).toBe(vector.expect.code);
+        expect(getProviderDispatchCount(), vector.id).toBe(1);
+        executed.push(vector.id);
+        continue;
+      }
+
+      const missingTenant = vector.id === "SEC-TENANT-001";
       const requiredPermissions = vector.id === "SEC-PERMISSION-001" ? ["employee:read"] : [];
       const { runtime, getProviderDispatchCount } = makeRuntime(requiredPermissions);
       const identity: Identity = {
@@ -105,10 +132,10 @@ describe("A2API shared runtime conformance vectors", () => {
       expect(wire.result.ok, vector.id).toBe(false);
       expect((wire.result as { error?: { code?: string } }).error?.code, vector.id).toBe(vector.expect.code);
       expect(getProviderDispatchCount(), vector.id).toBe(0);
-      expect(vector.expect.providerDispatched, vector.id).toBe(false);
+      expect(vector.expect.providerDispatched ?? false, vector.id).toBe(false);
       executed.push(vector.id);
     }
 
-    expect(executed).toEqual(["SEC-TENANT-001", "SEC-PERMISSION-001"]);
+    expect(executed).toEqual(["SEC-TENANT-001", "SEC-PERMISSION-001", "AUDIT-REQUIRED-001"]);
   });
 });
