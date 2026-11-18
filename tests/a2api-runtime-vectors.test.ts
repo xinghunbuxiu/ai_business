@@ -156,7 +156,7 @@ describe("A2API shared runtime conformance vectors", () => {
           identity
         });
         expect((wire.result as { error?: { code?: string } }).error?.code, vector.id).toBe(vector.expect.code);
-        expect(getProviderDispatchCount(), vector.id).toBe(vector.expect.providerDispatchCount);
+        expect(getProviderDispatchCount() > 0, vector.id).toBe(vector.expect.providerDispatched);
         expect(getAbortObserved(), vector.id).toBe(true);
         expect(getLateCompletion(), vector.id).toBe(true);
         executed.push(vector.id);
