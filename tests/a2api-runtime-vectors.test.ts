@@ -45,7 +45,7 @@ afterAll(() => {
     }))
   };
   mkdirSync("artifacts", { recursive: true });
-  writeFileSync("artifacts/a2api-runtime-conformance.json", JSON.stringify(report, null, 2) + "\\n");
+  writeFileSync("artifacts/a2api-runtime-conformance.json", JSON.stringify(report, null, 2) + "\n");
 });
 
 function contract(permissions: string[], idempotencyRequired = false, timeoutMs = 5000): CapabilityContract {
