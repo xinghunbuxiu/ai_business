@@ -70,3 +70,16 @@ Each report binds the result to:
 - Totals for passed, failed, unsupported and not-executed cases.
 
 The CI workflow uploads the report as a 30-day artifact named with the tested commit SHA, even when a later workflow step fails. A missing report is warned, not silently treated as a pass. This is the first Node-side report producer; Framework/Java report production and a cross-repository aggregator remain follow-up work. The report is an adapter test artifact, not a protocol wire message and not proof of end-to-end interoperability.
+
+
+## Latest PostgreSQL and report verification (2026-11-18)
+
+- CI run [44242582754](https://github.com/xinghunbuxiu/ai_business/actions/runs/44242582754) passed at PR merge/test SHA `f25b383b7ba60acab5adb91c14eea15ada26065e`.
+- TypeScript typecheck: passed; Vitest: 16 files / 88 tests passed; build: passed; Java SDK verification: passed.
+- PostgreSQL 16 service-backed integration suite: 4 tests passed:
+  - 20 concurrent reservations for one scoped key produce exactly one acquired claim and 19 in-progress responses.
+  - A completed result is replayed through a second Store instance.
+  - Expired IN_PROGRESS becomes durable UNKNOWN and remains after cleanup.
+  - Expired COMPLETED is cleaned and the key can be reserved again after retention.
+- The workflow uploaded artifact [`a2api-runtime-conformance-f25b383b7ba60acab5adb91c14eea15ada26065e`](https://github.com/xinghunbuxiu/ai_business/actions/runs/44242582754) (artifact ID `14400636614`, 30-day retention). The report was downloaded and inspected: 7/7 runtime vectors passed, 0 failed, 0 unsupported, 0 not-executed. Corpus SHA-256: `a128c3570671ae78a3c85633c49b66f8361d460c526550e81490d3822a3c2631`.
+- This establishes the ai_business PostgreSQL adapter's tested claim/replay/retention behavior against PostgreSQL 16. It does not prove crash-safe exactly-once external effects or cross-repository interoperability.
