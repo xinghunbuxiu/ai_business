@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { mapCapabilityContractToRegistryAsset } from "../src/a2api-contract-adapter.js";
+import { mapCapabilityContractToRegistryAsset, type CapabilityContract } from "../src/a2api-contract-adapter.js";
 
-const contract = () => ({
+const contract = (): CapabilityContract => ({
   protocolVersion: "1.0.0",
   id: "employee.lookup",
   version: "1.2.0",
