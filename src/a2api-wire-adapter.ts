@@ -12,7 +12,7 @@ const SassInvocationSchema = z.object({
     requestId: z.string().min(1),
     correlationId: z.string().min(1).optional(),
     idempotencyKey: z.string().min(1).optional(),
-    deadline: z.string().datetime().optional()
+    deadline: z.string().datetime({ offset: true }).optional()
   }).strict(),
   input: z.unknown()
 }).strict();
@@ -146,7 +146,10 @@ export function adaptRuntimeResultToSassWire(
     evidence.invocationId !== invocationId ||
     evidence.capability.id !== runtimeResult.capability ||
     evidence.capability.version !== capabilityVersion ||
-    evidence.principalId !== identity.userId
+    evidence.principalId !== identity.userId ||
+    (evidence.tenantId !== undefined && evidence.tenantId !== identity.tenantId) ||
+    (runtimeResult.success && evidence.outcome !== "success") ||
+    (!runtimeResult.success && !["failure", "denied"].includes(evidence.outcome))
   )) {
     return {
       result: failure(invocationId, "AUDIT_IDENTITY_MISMATCH", "Audit evidence does not match this invocation and trusted identity"),
