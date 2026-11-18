@@ -1,6 +1,6 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createHash } from "node:crypto";
-import Ajv2020 from "ajv/dist/2020.js";
+import Ajv from "ajv";
 import { afterAll, describe, expect, it } from "vitest";
 import { AssetRegistry, ExecutionRuntime, type A2APICapability, type Identity } from "../src/index.js";
 import {
@@ -21,7 +21,8 @@ const corpusBytes = readFileSync(new URL("../protocols/a2api/1.0.0/conformance/v
 const corpusSha256 = createHash("sha256").update(corpusBytes).digest("hex");
 const executedRuntimeVectorIds: string[] = [];
 const reportSchema = JSON.parse(readFileSync(new URL("../protocols/a2api/1.0.0/conformance/runtime-report.schema.json", import.meta.url), "utf8"));
-const validateRuntimeReport = new Ajv2020({ strict: false }).compile(reportSchema);
+delete reportSchema.$schema;
+const validateRuntimeReport = new Ajv({ strict: false, validateSchema: false }).compile(reportSchema);
 
 afterAll(() => {
   const runtimeVectors = corpus.cases.filter(vector => vector.runner === "runtime-contract");
